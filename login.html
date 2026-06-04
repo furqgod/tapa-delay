@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tapa Delay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --panel: #141418;
+    --panel-2: #1a1a20;
+    --stroke: #26262e;
+    --stroke-strong: #34343f;
+    --text: #e2e2e8;
+    --muted: #7f7f8c;
+    --muted-2: #5a5a66;
+    --purple: #6366F1;
+    --purple-2: #4338CA;
+    --purple-glow: rgba(99,102,241,0.35);
+    --amber: #F59E0B;
+    --amber-2: #d97e06;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --radius: 14px;
+    --radius-sm: 11px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html {
+    width: 100%;
+    height: 100%;
+    background: #050506;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+
+  body {
+    position: relative;
+    width: 440px;
+    height: 600px;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    border-radius: 16px;
+    border: 1px solid #1c1c24;
+    box-shadow: 0 40px 100px -30px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.02);
+  }
+
+  body::before {
+    content: "";
+    position: absolute;
+    top: -160px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 460px;
+    height: 460px;
+    background: radial-gradient(circle, var(--purple-glow) 0%, rgba(99,102,241,0) 68%);
+    filter: blur(8px);
+    opacity: 0.55;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Drag bar ── */
+  .drag-bar {
+    position: relative;
+    z-index: 5;
+    height: 38px;
+    width: 100%;
+    -webkit-app-region: drag;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 10px;
+  }
+
+  #btnClose {
+    -webkit-app-region: no-drag;
+    width: 26px; height: 26px;
+    border: none; border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: grid; place-items: center;
+    font-size: 15px;
+    transition: background 140ms ease, color 140ms ease;
+  }
+  #btnClose:hover { background: #2a1518; color: #ff6b6b; }
+
+  /* ── Stage / screens ── */
+  .stage {
+    position: relative;
+    z-index: 1;
+    height: calc(600px - 38px);
+    overflow: hidden;
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 38px 28px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(24px);
+    transition: opacity 360ms cubic-bezier(.22,.61,.36,1),
+                transform 360ms cubic-bezier(.22,.61,.36,1),
+                visibility 0s linear 360ms;
+  }
+  .screen.active {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+    transition: opacity 420ms cubic-bezier(.22,.61,.36,1),
+                transform 420ms cubic-bezier(.22,.61,.36,1),
+                visibility 0s linear 0s;
+  }
+  .screen.leaving-left { transform: translateX(-24px); }
+
+  /* ── Brand ── */
+  .brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 14px;
+  }
+  .logo {
+    width: 62px; height: 62px;
+    border-radius: 18px;
+    background: linear-gradient(150deg, var(--purple) 0%, var(--purple-2) 100%);
+    display: grid; place-items: center;
+    font-weight: 800; font-size: 24px;
+    letter-spacing: -0.5px;
+    color: #fff;
+    box-shadow: 0 10px 30px -8px var(--purple-glow), inset 0 1px 0 rgba(255,255,255,0.18);
+    position: relative;
+  }
+  .logo::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .brand h1 { margin-top: 16px; font-size: 23px; font-weight: 700; letter-spacing: -0.4px; }
+  .brand p  { margin-top: 5px; font-size: 13px; color: var(--muted); font-weight: 400; }
+
+  /* ── Form ── */
+  form {
+    width: 100%;
+    margin-top: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 7px; }
+  .field label {
+    font-size: 11.5px; font-weight: 600;
+    letter-spacing: 0.3px; text-transform: uppercase;
+    color: var(--muted); padding-left: 2px;
+  }
+  .input-wrap { position: relative; display: flex; align-items: center; }
+  .input-wrap input {
+    width: 100%; height: 46px;
+    background: var(--panel);
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: inherit; font-size: 14px;
+    padding: 0 14px;
+    outline: none;
+    transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    user-select: text;
+  }
+  .input-wrap input::placeholder { color: var(--muted-2); }
+  .input-wrap input:hover { border-color: var(--stroke-strong); }
+  .input-wrap input:focus {
+    border-color: var(--purple);
+    background: var(--panel-2);
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.16);
+  }
+  .input-wrap.has-eye input { padding-right: 44px; }
+
+  .eye {
+    position: absolute; right: 6px;
+    width: 34px; height: 34px;
+    border: none; background: transparent;
+    border-radius: 8px; color: var(--muted);
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: color 140ms ease, background 140ms ease;
+  }
+  .eye:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .eye svg { width: 18px; height: 18px; }
+  .eye .eye-off { display: none; }
+  .eye.revealed .eye-on  { display: none; }
+  .eye.revealed .eye-off { display: block; }
+
+  /* ── Buttons ── */
+  .actions {
+    width: 100%;
+    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .btn {
+    height: 47px; border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 14.5px;
+    font-weight: 600; letter-spacing: 0.1px;
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: transform 120ms ease, box-shadow 160ms ease, filter 160ms ease;
+    width: 100%;
+  }
+  .btn:active { transform: translateY(1px) scale(0.995); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+  .btn-primary {
+    background: linear-gradient(140deg, var(--purple) 0%, var(--purple-2) 100%);
+    color: #fff;
+    box-shadow: 0 8px 22px -8px var(--purple-glow), inset 0 1px 0 rgba(255,255,255,0.16);
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+
+  .btn-amber {
+    background: linear-gradient(140deg, #fbb43a 0%, var(--amber) 55%, var(--amber-2) 100%);
+    color: #2a1c00;
+    box-shadow: 0 8px 22px -8px rgba(245,158,11,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+  .btn-amber:hover { filter: brightness(1.05); }
+
+  .btn-secondary {
+    height: 44px;
+    background: var(--panel);
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-sm);
+    color: #bfbfc5; font-size: 13px; font-weight: 500;
+    cursor: pointer; width: 100%;
+    transition: background 150ms;
+    font-family: inherit;
+  }
+  .btn-secondary:hover { background: var(--panel-2); }
+  .btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ── Switch (Não tem conta?) ── */
+  .switch {
+    margin-top: auto;
+    padding-top: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .switch span { color: var(--muted); }
+  .switch button {
+    background: none; border: none;
+    color: var(--purple); font-family: inherit;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; padding: 4px 2px;
+    transition: color 140ms ease;
+    position: relative;
+  }
+  .switch button::after {
+    content: "";
+    position: absolute;
+    left: 2px; right: 2px; bottom: 2px;
+    height: 1px; background: currentColor;
+    transform: scaleX(0); transform-origin: left;
+    transition: transform 180ms ease;
+  }
+  .switch button:hover { color: #818cf8; }
+  .switch button:hover::after { transform: scaleX(1); }
+
+  /* ── Message ── */
+  .msg {
+    font-size: 12px; padding: 8px 12px;
+    border-radius: 8px; text-align: center;
+    display: none; margin-top: 2px;
+  }
+  .msg.error  { background: rgba(239,68,68,.1);  color: var(--danger);  border: 1px solid rgba(239,68,68,.2);  display: block; }
+  .msg.success{ background: rgba(34,197,94,.1);  color: var(--success); border: 1px solid rgba(34,197,94,.2);  display: block; }
+
+  /* ── Spinner (loading) ── */
+  .spinner-wrap {
+    display: flex; align-items: center;
+    justify-content: center; height: 100%;
+  }
+  .spinner {
+    width: 30px; height: 30px;
+    border: 3px solid var(--stroke);
+    border-top-color: var(--purple);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Info screens (check email / expired) ── */
+  .info-body {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    flex: 1; width: 100%; text-align: center;
+  }
+  .big-icon    { font-size: 46px; margin-bottom: 14px; }
+  .screen-title{ font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .screen-desc {
+    font-size: 13px; color: var(--muted);
+    line-height: 1.65; margin-bottom: 22px;
+  }
+  .screen-desc strong { color: #bfbfc5; }
+
+  .expired-actions {
+    width: 100%;
+    display: flex; flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Promo code */
+  .promo-divider {
+    text-align: center; color: var(--stroke-strong);
+    font-size: 11px; font-weight: 600;
+    letter-spacing: .05em; margin: 2px 0;
+  }
+  .promo-wrap {
+    display: flex; gap: 8px;
+  }
+  .promo-wrap input {
+    flex: 1; height: 44px;
+    background: var(--panel);
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-sm);
+    color: var(--text); font-family: inherit;
+    font-size: 13px; padding: 0 14px;
+    outline: none; text-transform: uppercase;
+    transition: border-color 160ms ease;
+    user-select: text;
+  }
+  .promo-wrap input::placeholder { color: var(--muted-2); text-transform: none; }
+  .promo-wrap input:focus { border-color: var(--purple); }
+  .promo-wrap .btn-promo {
+    height: 44px; padding: 0 18px;
+    background: linear-gradient(140deg, var(--purple) 0%, var(--purple-2) 100%);
+    color: #fff; border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 14px;
+    font-weight: 600; cursor: pointer;
+    transition: filter 160ms ease; white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .promo-wrap .btn-promo:hover  { filter: brightness(1.08); }
+  .promo-wrap .btn-promo:disabled { opacity: .45; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<div class="drag-bar">
+  <button id="btnClose">✕</button>
+</div>
+
+<div class="stage">
+
+  <!-- LOADING -->
+  <div class="screen active" id="screenLoading">
+    <div class="spinner-wrap"><div class="spinner"></div></div>
+  </div>
+
+  <!-- LOGIN -->
+  <section class="screen" id="screenLogin">
+    <div class="brand">
+      <div class="logo">TD</div>
+      <h1>Tapa Delay</h1>
+      <p>Entre para controlar o seu delay</p>
+    </div>
+
+    <form id="formLogin" autocomplete="off" onsubmit="return false;">
+      <div class="field">
+        <label for="inputEmail">Email</label>
+        <div class="input-wrap">
+          <input id="inputEmail" type="email" placeholder="voce@exemplo.com" autocomplete="email">
+        </div>
+      </div>
+      <div class="field">
+        <label for="inputPassword">Senha</label>
+        <div class="input-wrap has-eye">
+          <input id="inputPassword" type="password" placeholder="••••••••">
+          <button type="button" class="eye" data-target="inputPassword" aria-label="Mostrar senha">
+            <svg class="eye-on"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2"/><path d="M9.4 5.2A9.5 9.5 0 0 1 12 5c6.5 0 10 7 10 7a16 16 0 0 1-3.1 3.9"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a9.5 9.5 0 0 0 2.6-.4"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="msgLogin" class="msg"></div>
+      <div class="actions">
+        <button id="btnSubmit" class="btn btn-primary" type="submit">Entrar</button>
+        <button id="btnSubscribeLogin" class="btn btn-amber" type="button">Assinar</button>
+      </div>
+    </form>
+
+    <div class="switch">
+      <span>Não tem conta?</span>
+      <button type="button" data-goto="screenSignup">Criar conta</button>
+    </div>
+  </section>
+
+  <!-- CRIAR CONTA -->
+  <section class="screen" id="screenSignup">
+    <div class="brand">
+      <div class="logo">TD</div>
+      <h1>Criar conta</h1>
+      <p>Comece a usar o Tapa Delay</p>
+    </div>
+
+    <form id="formSignup" autocomplete="off" onsubmit="return false;">
+      <div class="field">
+        <label for="inputName">Nome</label>
+        <div class="input-wrap">
+          <input id="inputName" type="text" placeholder="Seu nome">
+        </div>
+      </div>
+      <div class="field">
+        <label for="inputEmailSignup">Email</label>
+        <div class="input-wrap">
+          <input id="inputEmailSignup" type="email" placeholder="voce@exemplo.com" autocomplete="email">
+        </div>
+      </div>
+      <div class="field">
+        <label for="inputPasswordSignup">Senha</label>
+        <div class="input-wrap has-eye">
+          <input id="inputPasswordSignup" type="password" placeholder="••••••••">
+          <button type="button" class="eye" data-target="inputPasswordSignup" aria-label="Mostrar senha">
+            <svg class="eye-on"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2"/><path d="M9.4 5.2A9.5 9.5 0 0 1 12 5c6.5 0 10 7 10 7a16 16 0 0 1-3.1 3.9"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a9.5 9.5 0 0 0 2.6-.4"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="msgSignup" class="msg"></div>
+      <div class="actions">
+        <button id="btnSignupSubmit" class="btn btn-primary" type="submit">Criar conta</button>
+      </div>
+    </form>
+
+    <div class="switch">
+      <span>Já tem conta?</span>
+      <button type="button" data-goto="screenLogin">Entrar</button>
+    </div>
+  </section>
+
+  <!-- CONFIRMAR EMAIL -->
+  <div class="screen" id="screenCheckEmail">
+    <div class="info-body">
+      <div class="big-icon">📧</div>
+      <div class="screen-title">Verifique seu email</div>
+      <p class="screen-desc">
+        Enviamos um link de confirmação para<br>
+        <strong id="emailSentTo"></strong><br><br>
+        Clique no link e depois volte para fazer login.
+      </p>
+      <button class="btn-secondary" id="btnBackLogin">← Voltar para login</button>
+    </div>
+  </div>
+
+  <!-- TRIAL EXPIRADO / SEM ASSINATURA -->
+  <div class="screen" id="screenExpired">
+    <div class="info-body">
+      <div class="big-icon">🔒</div>
+      <div class="screen-title" id="expiredTitle">Trial expirado</div>
+      <p class="screen-desc" id="expiredDesc">Seus 30 dias gratuitos chegaram ao fim.<br>Assine para continuar usando o Tapa Delay.</p>
+    </div>
+    <div class="expired-actions">
+      <button class="btn btn-primary" id="btnSubscribe">🚀 Assinar Tapa Delay</button>
+      <button class="btn-secondary" id="btnAlreadyPaid">✅ Já assinei — verificar acesso</button>
+      <div class="promo-divider">— ou —</div>
+      <div class="promo-wrap">
+        <input type="text" id="inputPromoCode" placeholder="Código de trial">
+        <button class="btn-promo" id="btnRedeemCode">Ativar</button>
+      </div>
+      <div id="msgPromoCode" class="msg"></div>
+      <button class="btn-secondary" id="btnLogoutExpired">Sair da conta</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const PAYMENT_LINK = 'https://buy.stripe.com/test_4gM6oHeUJfHd1FIe5983C00';
+
+let currentUserId = null;
+let currentEmail  = null;
+let _currentScreen = 'screenLoading';
+let _paymentPollInterval = null;
+
+// ── Screen navigation ──────────────────────────────────────────────────────
+
+function showScreen(name) {
+  var cur = document.getElementById(_currentScreen);
+  if (cur) {
+    cur.classList.add('leaving-left');
+    cur.classList.remove('active');
+    setTimeout(function() { if (cur) cur.classList.remove('leaving-left'); }, 420);
+  }
+  var next = document.getElementById(name);
+  if (next) {
+    next.classList.add('active');
+    next.classList.remove('leaving-left');
+  }
+  _currentScreen = name;
+}
+
+// data-goto buttons
+document.querySelectorAll('[data-goto]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    clearMsg('msgLogin');
+    clearMsg('msgSignup');
+    showScreen(btn.getAttribute('data-goto'));
+  });
+});
+
+// ── Eye toggles ────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.eye').forEach(function(eye) {
+  eye.addEventListener('click', function() {
+    var input = document.getElementById(eye.getAttribute('data-target'));
+    if (!input) return;
+    var reveal = input.type === 'password';
+    input.type = reveal ? 'text' : 'password';
+    eye.classList.toggle('revealed', reveal);
+  });
+});
+
+// ── Messages ───────────────────────────────────────────────────────────────
+
+function showMsg(id, text, type) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'msg ' + (type || 'error');
+}
+function clearMsg(id) {
+  var el = document.getElementById(id);
+  if (el) el.className = 'msg';
+}
+
+function translateError(err) {
+  if (!err) return 'Erro desconhecido.';
+  if (err.includes('Invalid login credentials')) return 'Email ou senha incorretos.';
+  if (err.includes('Email not confirmed'))        return 'Confirme seu email antes de entrar.';
+  if (err.includes('User already registered'))    return 'Este email já está cadastrado.';
+  if (err.includes('Password should be at least')) return 'A senha deve ter pelo menos 6 caracteres.';
+  if (err.includes('rate limit'))                 return 'Muitas tentativas. Aguarde um momento.';
+  return err;
+}
+
+// ── Access handling ────────────────────────────────────────────────────────
+
+function handleAccess(access) {
+  if (access.userId) currentUserId = access.userId;
+  if (access.email)  currentEmail  = access.email;
+
+  if (access.hasAccess) {
+    window.authApi.notifySuccess(access);
+    return;
+  }
+
+  if (access.reason === 'trial_expired') {
+    document.getElementById('expiredTitle').textContent = 'Trial expirado';
+    document.getElementById('expiredDesc').innerHTML = 'Seus 30 dias gratuitos chegaram ao fim.<br>Assine ou use um código de trial.';
+  } else if (access.reason === 'subscription_cancelled') {
+    document.getElementById('expiredTitle').textContent = 'Assinatura cancelada';
+    document.getElementById('expiredDesc').innerHTML = 'Sua assinatura foi cancelada.<br>Renove para continuar usando o Tapa Delay.';
+  } else if (access.reason === 'no_subscription') {
+    document.getElementById('expiredTitle').textContent = 'Bem-vindo!';
+    document.getElementById('expiredDesc').innerHTML = 'Assine o Tapa Delay para começar<br>ou use um código de trial.';
+  } else {
+    showMsg('msgLogin', 'Não foi possível verificar o acesso. Tente novamente.');
+    showScreen('screenLogin');
+    return;
+  }
+  showScreen('screenExpired');
+}
+
+// ── Login form ─────────────────────────────────────────────────────────────
+
+document.getElementById('formLogin').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  clearMsg('msgLogin');
+  var email    = document.getElementById('inputEmail').value.trim();
+  var password = document.getElementById('inputPassword').value;
+  if (!email || !password) return;
+
+  var btn = document.getElementById('btnSubmit');
+  btn.disabled = true; btn.textContent = 'Aguarde...';
+
+  try {
+    var res = await window.authApi.login(email, password);
+    if (!res.success) {
+      showMsg('msgLogin', translateError(res.error));
+      btn.disabled = false; btn.textContent = 'Entrar';
+      return;
+    }
+    var access = await window.authApi.checkAccess();
+    btn.disabled = false; btn.textContent = 'Entrar';
+    handleAccess(access);
+  } catch {
+    showMsg('msgLogin', 'Erro de conexão. Verifique sua internet.');
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+});
+
+// ── Signup form ────────────────────────────────────────────────────────────
+
+document.getElementById('formSignup').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  clearMsg('msgSignup');
+  var name     = document.getElementById('inputName').value.trim();
+  var email    = document.getElementById('inputEmailSignup').value.trim();
+  var password = document.getElementById('inputPasswordSignup').value;
+
+  if (!name)     { showMsg('msgSignup', 'Digite seu nome.'); return; }
+  if (!email)    { showMsg('msgSignup', 'Digite seu email.'); return; }
+  if (!password) { showMsg('msgSignup', 'Digite uma senha.'); return; }
+
+  var btn = document.getElementById('btnSignupSubmit');
+  btn.disabled = true; btn.textContent = 'Aguarde...';
+
+  try {
+    var res = await window.authApi.signup(email, password, name);
+    if (!res.success) {
+      showMsg('msgSignup', translateError(res.error));
+      btn.disabled = false; btn.textContent = 'Criar conta';
+      return;
+    }
+    if (res.needsConfirmation) {
+      document.getElementById('emailSentTo').textContent = email;
+      showScreen('screenCheckEmail');
+    } else {
+      var access = await window.authApi.checkAccess();
+      btn.disabled = false; btn.textContent = 'Criar conta';
+      handleAccess(access);
+    }
+  } catch {
+    showMsg('msgSignup', 'Erro de conexão. Verifique sua internet.');
+    btn.disabled = false; btn.textContent = 'Criar conta';
+  }
+});
+
+// ── Back to login ──────────────────────────────────────────────────────────
+
+document.getElementById('btnBackLogin').addEventListener('click', function() {
+  showScreen('screenLogin');
+});
+
+// ── Assinar (login screen) ─────────────────────────────────────────────────
+
+document.getElementById('btnSubscribeLogin').addEventListener('click', function() {
+  window.authApi.openExternal(PAYMENT_LINK);
+});
+
+// ── Payment polling ────────────────────────────────────────────────────────
+
+function startPaymentPolling() {
+  if (_paymentPollInterval) return;
+  var btn = document.getElementById('btnAlreadyPaid');
+  if (btn) { btn.textContent = '⏳ Aguardando pagamento...'; btn.disabled = true; }
+
+  _paymentPollInterval = setInterval(async function() {
+    var access = await window.authApi.checkAccess();
+    if (access.hasAccess) {
+      clearInterval(_paymentPollInterval);
+      _paymentPollInterval = null;
+      window.authApi.notifySuccess(access);
+    }
+  }, 4000);
+}
+
+document.getElementById('btnSubscribe').addEventListener('click', function() {
+  var url = PAYMENT_LINK;
+  if (currentUserId) url += '?client_reference_id=' + currentUserId;
+  if (currentEmail)  url += (currentUserId ? '&' : '?') + 'prefilled_email=' + encodeURIComponent(currentEmail);
+  window.authApi.openExternal(url);
+  startPaymentPolling();
+});
+
+document.getElementById('btnAlreadyPaid').addEventListener('click', async function() {
+  var btn = this;
+  btn.textContent = 'Verificando...'; btn.disabled = true;
+  var access = await window.authApi.checkAccess();
+  if (access.hasAccess) {
+    window.authApi.notifySuccess(access);
+  } else {
+    btn.textContent = '✅ Já assinei — verificar acesso'; btn.disabled = false;
+    showMsg('msgPromoCode', 'Pagamento ainda não confirmado. Aguarde e tente novamente.', 'error');
+  }
+});
+
+// ── Promo code ─────────────────────────────────────────────────────────────
+
+document.getElementById('btnRedeemCode').addEventListener('click', async function() {
+  var code = document.getElementById('inputPromoCode').value.trim();
+  clearMsg('msgPromoCode');
+  if (!code)           { showMsg('msgPromoCode', 'Digite um código.'); return; }
+  if (!currentUserId)  { showMsg('msgPromoCode', 'Faça login primeiro.'); return; }
+
+  var btn = this;
+  btn.disabled = true; btn.textContent = 'Verificando...';
+
+  var res = await window.authApi.redeemCode(currentUserId, code);
+  if (res.success) {
+    showMsg('msgPromoCode', '✅ Código ativado! Aguarde...', 'success');
+    setTimeout(async function() {
+      var access = await window.authApi.checkAccess();
+      handleAccess(access);
+    }, 1000);
+  } else {
+    showMsg('msgPromoCode', res.error || 'Código inválido.');
+    btn.disabled = false; btn.textContent = 'Ativar';
+  }
+});
+
+// ── Logout (expired screen) ────────────────────────────────────────────────
+
+document.getElementById('btnLogoutExpired').addEventListener('click', async function() {
+  await window.authApi.logout();
+  showScreen('screenLogin');
+  document.getElementById('inputEmail').value = '';
+  document.getElementById('inputPassword').value = '';
+});
+
+// ── Close button ───────────────────────────────────────────────────────────
+
+document.getElementById('btnClose').addEventListener('click', function() {
+  window.authApi.closeWindow();
+});
+
+// ── onShowExpired ──────────────────────────────────────────────────────────
+
+window.authApi.onShowExpired(function(data) { handleAccess(data); });
+
+// ── Initial access check ───────────────────────────────────────────────────
+
+(async function() {
+  try {
+    var access = await window.authApi.checkAccess();
+    if (access.hasAccess) { window.authApi.notifySuccess(access); return; }
+    if (access.reason === 'not_logged_in' || access.reason === 'error') {
+      showScreen('screenLogin');
+    } else {
+      handleAccess(access);
+    }
+  } catch {
+    showScreen('screenLogin');
+  }
+})();
+</script>
+</body>
+</html>
