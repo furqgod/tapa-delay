@@ -105,7 +105,6 @@ label,
     color: white;
     background: linear-gradient(135deg, #4775ff 0%, #664cff 100%);
     border-radius: 50%;
-    box-shadow: 0 12px 28px rgba(85, 105, 255, 0.35);
     font-weight: 800;
     font-size: 13px;
     cursor: pointer;
@@ -284,6 +283,60 @@ label,
 }
 .btn-update-install:hover { background: rgba(91,124,255,0.32); }
 
+.update-settings-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, rgba(91,124,255,0.1), rgba(141,108,255,0.1));
+    border: 1px solid rgba(91,124,255,0.3);
+    border-radius: var(--radius);
+}
+
+.update-settings-icon {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    color: #a5b4fc;
+    background: rgba(91,124,255,0.15);
+    border-radius: 12px;
+}
+.update-settings-icon svg { width: 20px; height: 20px; }
+
+.update-settings-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.update-settings-info strong {
+    font-size: 14px;
+    font-weight: 700;
+    color: #c7d2fe;
+}
+.update-settings-info span {
+    font-size: 12px;
+    color: #818cf8;
+}
+
+.btn-update-close {
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: none;
+    color: #7b8cde;
+    cursor: pointer;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+}
+.btn-update-close:hover { opacity: 1; }
+.btn-update-close svg { width: 13px; height: 13px; }
+
 .pages-container {
     flex: 1;
     position: relative;
@@ -320,14 +373,20 @@ label,
     border-radius: 99px;
 }
 
+#delayPage {
+    display: flex;
+    flex-direction: column;
+}
+
 .delay-hero {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding-top: 16px;
-    padding-bottom: 8px;
+    padding-top: 0;
+    padding-bottom: 0;
 }
 
 .eyebrow {
@@ -431,6 +490,7 @@ label,
 
 .presets-section {
     width: 100%;
+    padding-bottom: 8px;
 }
 
 .presets-section h2 {
@@ -982,6 +1042,7 @@ select.input-text option {
     margin-left: 54px;
     margin-top: 22px;
 }
+
 
 .about-card {
     display: flex;

@@ -48,7 +48,7 @@ class StreamDelayServer extends EventEmitter {
         this.virtualSubscribers = {};
         this._spawnWriters      = {};
         this._reconnectTimers   = {};
-        this._resetPending      = {}; // reset pendente por plataforma — evita loops simultâneos
+        this._resetPending      = false; // evita resets simultâneos
 
         this.buffers              = {};
         this.sentUntils           = {};
@@ -119,23 +119,29 @@ class StreamDelayServer extends EventEmitter {
         console.log(`[StreamDelay] Streaming ${this.streamingBlocked ? 'BLOQUEADO' : 'liberado'}`);
     }
 
-    // Reinicia apenas a plataforma que falhou — as outras continuam sem interrupção.
-    // O VS novo re-subscreve o NMS e recebe headers + GOP cache frescos.
+    // Reinicia o pipeline completo internamente (sem precisar reiniciar o OBS).
+    // Usado quando uma plataforma não activa após 10s — equivale a reiniciar o OBS.
     _scheduleReset(platform) {
-        if (this._resetPending[platform]) return;
-        this._resetPending[platform] = true;
+        if (this._resetPending) return;
+        this._resetPending = true;
         const streamPath = this.currentStreamPath;
-        this._writeLog(`↺ ${platform} sem frames após 10s — reiniciando apenas ${platform} em 3s`);
+        this._writeLog(`↺ ${platform} sem frames após 10s — reiniciando pipeline em 3s (todas as plataformas)`);
 
         setTimeout(() => {
-            if (!this.connected || this.currentStreamPath !== streamPath || this.platforms[platform]?.manuallyStopped) {
-                this._resetPending[platform] = false;
+            if (!this.connected || this.currentStreamPath !== streamPath) {
+                this._resetPending = false;
                 return;
             }
-            this._writeLog(`↺ ${platform} reiniciando (outras plataformas não são afetadas)`);
-            this._restartPlatform(platform);
-            // Mantém resetPending por 45s para evitar loop — dá tempo ao writer arrancar
-            setTimeout(() => { this._resetPending[platform] = false; }, 45000);
+            this._writeLog(`↺ Pipeline reiniciando — reconectando todas as plataformas`);
+            this._stopPipeline();
+
+            setTimeout(() => {
+                if (this.connected && this.currentStreamPath === streamPath) {
+                    this._startPipeline(streamPath);
+                }
+                // Mantém resetPending por 45s para evitar loop — dá tempo aos writers arrancarem
+                setTimeout(() => { this._resetPending = false; }, 45000);
+            }, 5000);
         }, 3000);
     }
 
@@ -161,15 +167,10 @@ class StreamDelayServer extends EventEmitter {
             if (!sp) return;
             this._writeLog(`■ Stream encerrada (OBS desconectou)`);
             if (this.currentStreamPath === sp) {
-                this.connected = false;
-                // _stopPipeline precisa do currentStreamPath ainda válido pra conseguir
-                // desinscrever os VirtualSubscribers do broadcast.subscribers do NMS —
-                // senão eles ficam presos lá, e um restart rápido do OBS reusa o mesmo
-                // broadcast com VSs antigos + novos ao mesmo tempo, duplicando cada
-                // pacote FLV no stdin do writer (corrupção "vidro estilhaçado").
-                this._stopPipeline();
+                this.connected         = false;
                 this.currentStreamPath = null;
                 this.startTime         = null;
+                this._stopPipeline();
                 if (this.statsInterval) clearInterval(this.statsInterval);
                 this.emit('status', this.getStatus());
             }
@@ -347,13 +348,6 @@ class StreamDelayServer extends EventEmitter {
         this.bufferTransitions[name]    = false;
         this.transitionStartTimes[name] = null;
 
-        // Delay ativo no momento do restart? Reentra em modo transição (como 0→N):
-        // volta ao vivo e re-acumula o delay. Evita o loop de reset por "sem frames".
-        if (this.delay > 0) {
-            this.bufferTransitions[name]    = true;
-            this.transitionStartTimes[name] = Date.now();
-        }
-
         const spawnWriter = this._createSpawnWriter(output);
         this._spawnWriters[name] = spawnWriter;
 
@@ -406,25 +400,7 @@ class StreamDelayServer extends EventEmitter {
             if (broadcast.flvMetaData)    vs.sendBuffer(broadcast.flvMetaData);
             if (broadcast.flvAudioHeader) vs.sendBuffer(broadcast.flvAudioHeader);
             if (broadcast.flvVideoHeader) vs.sendBuffer(broadcast.flvVideoHeader);
-            // Em modo transição o writer começa num keyframe limpo (evita non-existing PPS)
-            if ((this.delay === 0 || this.bufferTransitions[name]) && broadcast.flvGopCache) {
-                const gopChunks = [...broadcast.flvGopCache];
-                if (gopChunks.length > 0) {
-                    // Timestamp FLV (dts) vem nos bytes 4-7 do tag header. Reenviar o
-                    // cache inteiro de uma vez (mesmo tick) faz o FFmpeg — que usa
-                    // -use_wallclock_as_timestamps — carimbar todos os frames quase no
-                    // mesmo instante, corrompendo a cadência logo no início do restart
-                    // (stutter). Espaçar pelo timestamp original evita a rajada.
-                    const readTs = (buf) => (buf[7] << 24) | (buf[4] << 16) | (buf[5] << 8) | buf[6];
-                    const t0 = readTs(gopChunks[0]);
-                    gopChunks.forEach(chunk => {
-                        const wait = Math.max(0, readTs(chunk) - t0);
-                        setTimeout(() => {
-                            if (this.virtualSubscribers[name] === vs) vs.sendBuffer(chunk);
-                        }, wait);
-                    });
-                }
-            }
+            if (this.delay === 0 && broadcast.flvGopCache) broadcast.flvGopCache.forEach(v => vs.sendBuffer(v));
             broadcast.subscribers.set(vs.id, vs);
         }
 
@@ -474,16 +450,15 @@ class StreamDelayServer extends EventEmitter {
                 ...(isYoutube ? ['-b:v', '8000k', '-maxrate', '8000k', '-bufsize', '16000k', '-bf', '0', '-g', '60', '-pix_fmt', 'yuv420p'] : []),
                 '-bsf:v', 'setts=pts=PTS-STARTPTS:dts=PTS-STARTPTS',
                 '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-ac', '2',
-                '-af', 'aresample=async=1',
+                '-af', 'aresample=async=1:first_pts=0',
                 '-f', 'flv', '-flvflags', 'no_duration_filesize',
                 output.url
             ];
 
             const writer = spawn(ffmpeg, writerArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
-            let writerAlive    = true;
-            let hasProgress    = false; // detecta se FFmpeg está realmente a encodar frames
-            let outputStarted  = false; // FFmpeg imprimiu "Output #0" — NVENC inicializado e RTMP ligado
-            let writerBuf      = '';
+            let writerAlive  = true;
+            let hasProgress  = false; // detecta se FFmpeg está realmente a encodar frames
+            let writerBuf    = '';
 
             writer.stderr.on('data', (data) => {
                 writerBuf += data.toString();
@@ -502,19 +477,6 @@ class StreamDelayServer extends EventEmitter {
                         const m = trimmed.match(/frame=\s*(\d+)/);
                         if (m && parseInt(m[1]) > 0) hasProgress = true;
                     }
-                    // "Output #0" = NVENC inicializado + RTMP conectado.
-                    // Só aqui o timer de "sem frames" faz sentido: cold-start do NVENC
-                    // pode levar >10s na primeira vez, mas após Output #0 frames devem
-                    // aparecer em <2s. O timer anterior em activateWriter dispava cedo
-                    // demais e reiniciava a plataforma desnecessariamente.
-                    if (!outputStarted && trimmed.includes('Output #0')) {
-                        outputStarted = true;
-                        setTimeout(() => {
-                            if (!hasProgress && writerAlive && this.connected && !this.platforms[name]?.manuallyStopped) {
-                                this._scheduleReset(name);
-                            }
-                        }, 10000);
-                    }
                 }
             });
             writer.stdin.on('error', (e) => { if (e.code !== 'EPIPE') console.error(`[StreamDelay] ${name} stdin: ${e.message}`); });
@@ -522,14 +484,9 @@ class StreamDelayServer extends EventEmitter {
             writer.on('close', async (code) => {
                 writerAlive = false;
                 console.log(`[StreamDelay] ${name} encerrado (code=${code})`);
-                // Morto pelo _stopPipeline (OBS desconectou) — ignorar completamente.
-                if (writer._expectedClose) return;
-                // Writer antigo morto durante um restart: um writer novo já está
-                // registado — este close é obsoleto, não apaga nem reconecta nada.
-                if (this.writerProcesses[name] && this.writerProcesses[name] !== writer) return;
                 delete this.writerProcesses[name];
 
-                const unexpected = this.connected && !this.platforms[name]?.manuallyStopped && !this._resetPending[name];
+                const unexpected = this.connected && !this.platforms[name]?.manuallyStopped && !this._resetPending;
                 if (unexpected) {
                     const stderrLines = this._stderrBuffers[name] || [];
                     const reason  = this._parseFFmpegError(stderrLines);
@@ -551,7 +508,7 @@ class StreamDelayServer extends EventEmitter {
                 }
                 delete this._stderrBuffers[name];
 
-                if (this.connected && !this.platforms[name]?.manuallyStopped && !this._resetPending[name]) {
+                if (this.connected && !this.platforms[name]?.manuallyStopped && !this._resetPending) {
                     this._writeLog(`↺ ${name} reconectando em 3s (GOP cache fresco)...`);
                     if (this._reconnectTimers[name]) clearTimeout(this._reconnectTimers[name]);
                     this._reconnectTimers[name] = setTimeout(() => {
@@ -567,16 +524,16 @@ class StreamDelayServer extends EventEmitter {
             const activateWriter = () => {
                 if (writerAlive && !this.writerProcesses[name]) {
                     this.writerProcesses[name] = writer;
-                    // Para delay=0 faz flush de tudo o que ficou no buffer antes de o writer
-                    // estar registado (headers, GOP cache inicial) — sem esta limpeza o writer
-                    // arranca a meio de um GOP e stuttera até ao próximo keyframe.
-                    if (this.delay === 0) {
-                        for (const chunk of (this.buffers[name] || [])) {
-                            if (writer.stdin && writer.stdin.writable) writer.stdin.write(chunk.data);
-                        }
-                    }
                     console.log(`[StreamDelay] ✓ Writer ${name} iniciado`);
                     this.emit('status', this.getStatus());
+
+                    // Verifica após 10s se a plataforma está realmente a receber dados.
+                    // Se não houver frames → dispara reset completo do pipeline.
+                    setTimeout(() => {
+                        if (!hasProgress && writerAlive && this.connected && !this.platforms[name]?.manuallyStopped) {
+                            this._scheduleReset(name);
+                        }
+                    }, 10000);
                 }
             };
 
@@ -585,7 +542,7 @@ class StreamDelayServer extends EventEmitter {
             const prerollFrom    = baseTime - 2000;
             const prerollChunks  = platformBuffer.filter(p => p.time >= prerollFrom && p.time <= baseTime);
 
-            if (this.delay > 0 && prerollChunks.length > 1) {
+            if (prerollChunks.length > 1) {
                 const t0 = prerollChunks[0].time;
                 prerollChunks.forEach(chunk => {
                     setTimeout(() => { if (writer.stdin && writer.stdin.writable) writer.stdin.write(chunk.data); }, chunk.time - t0);
@@ -594,8 +551,6 @@ class StreamDelayServer extends EventEmitter {
                 console.log(`[StreamDelay] ${name} pré-roll: ${prerollChunks.length} chunks (~${Math.round(dur / 1000)}s)`);
                 setTimeout(activateWriter, dur + 100);
             } else {
-                // delay=0: activar imediatamente; o flush em activateWriter envia os headers já
-                // acumulados no buffer antes de o writer estar registado.
                 activateWriter();
             }
         };
@@ -635,7 +590,7 @@ class StreamDelayServer extends EventEmitter {
         this.virtualSubscribers = {};
 
         for (const [, writer] of Object.entries(this.writerProcesses)) {
-            if (writer) { writer._expectedClose = true; writer.kill('SIGKILL'); }
+            if (writer) writer.kill('SIGKILL');
         }
         this.writerProcesses = {};
 
@@ -645,7 +600,6 @@ class StreamDelayServer extends EventEmitter {
         this.isBufferings         = {};
         this.bufferTransitions    = {};
         this.transitionStartTimes = {};
-        this._resetPending        = {};
 
         for (const p of Object.values(this.platforms)) {
             p.manuallyStopped     = false;

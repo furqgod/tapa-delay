@@ -58,8 +58,14 @@
         </header>
 
         <div class="update-banner" id="updateBanner" style="display:none">
-            <span id="updateText">Nova versão disponível — baixando...</span>
-            <button class="btn-update-install" id="btnInstallUpdate" style="display:none">Instalar e reiniciar</button>
+            <span id="updateText">Nova versão disponível</span>
+            <div style="display:flex;align-items:center;gap:10px">
+                <button class="btn-update-install" id="btnDownloadUpdate">Baixar</button>
+                <button class="btn-update-install" id="btnInstallUpdate" style="display:none">Instalar e reiniciar</button>
+                <button class="btn-update-close" id="btnDismissUpdate" title="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
         </div>
 
         <main class="pages-container">
@@ -272,6 +278,19 @@
 
             <section class="page" id="settingsPage">
                 <div class="stack settings-stack">
+
+                    <section class="update-settings-card" id="updateSettingsCard" style="display:none">
+                        <div class="update-settings-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        </div>
+                        <div class="update-settings-info">
+                            <strong id="updateSettingsTitle">Atualização disponível</strong>
+                            <span id="updateSettingsDesc">Baixando nova versão...</span>
+                        </div>
+                        <button class="btn-update-install" id="btnDownloadUpdate2">Baixar</button>
+                        <button class="btn-update-install" id="btnInstallUpdate2" style="display:none">Instalar e reiniciar</button>
+                    </section>
+
                     <section class="settings-card">
                         <div class="setting-row">
                             <div class="setting-left">
@@ -339,6 +358,7 @@
                             <input type="text" class="input-text" value="any_value" readonly>
                         </div>
                     </section>
+
 
                     <section class="settings-card">
                         <div class="setting-row">

@@ -38,5 +38,6 @@ contextBridge.exposeInMainWorld('api', {
     // Auto-update
     onUpdateAvailable:  (cb) => ipcRenderer.on('update-available',  (_, info) => cb(info)),
     onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (_, info) => cb(info)),
+    downloadUpdate:     ()   => ipcRenderer.send('update-download'),
     installUpdate:      ()   => ipcRenderer.send('update-install')
 });

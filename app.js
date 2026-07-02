@@ -183,15 +183,15 @@ async function saveSetup() {
     const twitchServer = document.getElementById('twitchServer')?.value || 'sa_east';
     const twitchStableMode = els.twitchStableMode ? els.twitchStableMode.checked : true;
 
-    // Save to local storage
-    localStorage.setItem('twitchKey', twitchKey);
-    localStorage.setItem('youtubeKey', youtubeKey);
-    localStorage.setItem('kickKey', kickKey);
-    localStorage.setItem('twitchEnabled', twitchEnabled);
-    localStorage.setItem('youtubeEnabled', youtubeEnabled);
-    localStorage.setItem('kickEnabled', kickEnabled);
-    localStorage.setItem('twitchServer', twitchServer);
-    localStorage.setItem('twitchStableMode', twitchStableMode);
+    // Save to local storage (por usuário)
+    localStorage.setItem(uKey('twitchKey'),      twitchKey);
+    localStorage.setItem(uKey('youtubeKey'),     youtubeKey);
+    localStorage.setItem(uKey('kickKey'),        kickKey);
+    localStorage.setItem(uKey('twitchEnabled'),  twitchEnabled);
+    localStorage.setItem(uKey('youtubeEnabled'), youtubeEnabled);
+    localStorage.setItem(uKey('kickEnabled'),    kickEnabled);
+    localStorage.setItem(uKey('twitchServer'),   twitchServer);
+    localStorage.setItem(uKey('twitchStableMode'), twitchStableMode);
 
     // Update backend
     await window.api.setPlatformKey('twitch', twitchKey);
@@ -220,21 +220,20 @@ async function saveSetup() {
 els.btnSaveSetup?.addEventListener('click', saveSetup);
 
 function loadSetup() {
-    // Carrega do localStorage (ou migra se existia 'streamKey' antiga)
-    const oldKey = localStorage.getItem('streamKey');
-    if (oldKey && !localStorage.getItem('twitchKey')) {
-        localStorage.setItem('twitchKey', oldKey);
-        localStorage.removeItem('streamKey');
+    // lsGet: lê key prefixada por userId; se não existir, cai para key sem prefixo
+    // (compatibilidade com chaves salvas antes do sistema de userId)
+    function lsGet(name) {
+        return localStorage.getItem(uKey(name)) ?? localStorage.getItem(name);
     }
 
-    const twitchKey = localStorage.getItem('twitchKey') || '';
-    const youtubeKey = localStorage.getItem('youtubeKey') || '';
-    const kickKey = localStorage.getItem('kickKey') || '';
-    const twitchEnabled = localStorage.getItem('twitchEnabled') !== 'false';
-    const youtubeEnabled = localStorage.getItem('youtubeEnabled') === 'true';
-    const kickEnabled = localStorage.getItem('kickEnabled') === 'true';
-    const twitchServer = localStorage.getItem('twitchServer') || 'sa_east';
-    const twitchStableMode = localStorage.getItem('twitchStableMode') !== 'false';
+    const twitchKey      = lsGet('twitchKey')      || '';
+    const youtubeKey     = lsGet('youtubeKey')     || '';
+    const kickKey        = lsGet('kickKey')        || '';
+    const twitchEnabled  = lsGet('twitchEnabled')  !== 'false';
+    const youtubeEnabled = lsGet('youtubeEnabled') === 'true';
+    const kickEnabled    = lsGet('kickEnabled')    === 'true';
+    const twitchServer   = lsGet('twitchServer')   || 'sa_east';
+    const twitchStableMode = lsGet('twitchStableMode') !== 'false';
 
     if (els.twitchKey) els.twitchKey.value = twitchKey;
     if (els.youtubeKey) els.youtubeKey.value = youtubeKey;
@@ -275,9 +274,11 @@ function updateWriterControls(writers, connected) {
         if (!bar) continue;
 
         const info = writers && writers[p.name];
-        const platformEnabled = localStorage.getItem(`${p.name}Enabled`) === 'true' ||
-            (p.name === 'twitch' && localStorage.getItem('twitchEnabled') !== 'false');
-        const hasKey = !!(localStorage.getItem(`${p.name}Key`));
+        // lê com prefixo de userId; fallback para chave sem prefixo (chaves legadas)
+        const lsGetCtrl = (name) => localStorage.getItem(uKey(name)) ?? localStorage.getItem(name);
+        const platformEnabled = lsGetCtrl(`${p.name}Enabled`) === 'true' ||
+            (p.name === 'twitch' && lsGetCtrl('twitchEnabled') !== 'false');
+        const hasKey = !!(lsGetCtrl(`${p.name}Key`));
 
         // Só mostra a barra se a plataforma está habilitada, tem key e stream está ativa
         if (!connected || !platformEnabled || !hasKey) {
@@ -294,8 +295,8 @@ function updateWriterControls(writers, connected) {
             btn.classList.remove('restart');
         } else {
             dot.classList.add('stopped');
-            label.textContent = info?.manuallyStopped ? 'Parado manualmente' : 'Reconectando...';
-            btn.textContent = 'Reconectar';
+            label.textContent = info?.manuallyStopped ? 'Parado' : 'Reconectando...';
+            btn.textContent = 'Iniciar';
             btn.classList.add('restart');
         }
     }
@@ -375,7 +376,7 @@ function showAvatarPhoto(dataUrl) {
 }
 
 function loadAvatar() {
-    const saved = localStorage.getItem('profilePhoto');
+    const saved = localStorage.getItem(uKey('profilePhoto'));
     if (saved) showAvatarPhoto(saved);
 }
 
@@ -389,7 +390,7 @@ document.getElementById('avatarInput')?.addEventListener('change', (e) => {
     const reader = new FileReader();
     reader.onload = (ev) => {
         const dataUrl = ev.target.result;
-        localStorage.setItem('profilePhoto', dataUrl);
+        localStorage.setItem(uKey('profilePhoto'), dataUrl);
         showAvatarPhoto(dataUrl);
     };
     reader.readAsDataURL(file);
@@ -398,6 +399,11 @@ document.getElementById('avatarInput')?.addEventListener('change', (e) => {
 const PAYMENT_LINK = 'https://buy.stripe.com/test_4gM6oHeUJfHd1FIe5983C00';
 let _authUserId = null;
 let _authEmail  = null;
+
+// Keys salvas por usuário — cada conta tem seu próprio espaço no localStorage
+function uKey(name) {
+    return _authUserId ? `${_authUserId}_${name}` : name;
+}
 
 function openSubscribePage() {
     if (!isElectron) return;
@@ -419,8 +425,10 @@ function applyAuthInfo(info) {
     const banner   = document.getElementById('trialBanner');
     const daysEl   = document.getElementById('trialDaysLeft');
 
+    const userChanged = info.userId && info.userId !== _authUserId;
     if (info.userId) _authUserId = info.userId;
     if (info.email)  _authEmail  = info.email;
+    if (userChanged) loadSetup(); // recarrega keys da conta correta
 
     // Mostra nome se existir, senão o email
     if (emailEl)  emailEl.textContent  = info.name || info.email || '—';
@@ -486,23 +494,63 @@ if (isElectron) {
     });
 
     // Auto-update
+    document.getElementById('btnDismissUpdate')?.addEventListener('click', () => {
+        document.getElementById('updateBanner').style.display = 'none';
+        // Mostra o card de update na aba Settings e navega para lá
+        document.getElementById('updateSettingsCard').style.display = 'flex';
+        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        document.querySelector('[data-page="settings"]')?.classList.add('active');
+        document.querySelectorAll('.page').forEach(p => {
+            p.classList.toggle('active', p.id === 'settingsPage');
+        });
+    });
+
     window.api.onUpdateAvailable?.((info) => {
-        const banner = document.getElementById('updateBanner');
-        const text   = document.getElementById('updateText');
+        // Banner: mostra botão Baixar
+        const banner  = document.getElementById('updateBanner');
+        const text    = document.getElementById('updateText');
+        const btnDown = document.getElementById('btnDownloadUpdate');
         if (banner && text) {
-            text.textContent = `Nova versão ${info.version} disponível — baixando...`;
+            text.textContent = `Nova versão ${info.version} disponível`;
             banner.style.display = 'flex';
         }
+        if (btnDown) btnDown.onclick = () => {
+            btnDown.textContent = 'Baixando...';
+            btnDown.disabled = true;
+            window.api.downloadUpdate();
+        };
+        // Card Settings
+        const cardTitle = document.getElementById('updateSettingsTitle');
+        const cardDesc  = document.getElementById('updateSettingsDesc');
+        const cardBtnDown = document.getElementById('btnDownloadUpdate2');
+        if (cardTitle) cardTitle.textContent = `Versão ${info.version} disponível`;
+        if (cardDesc)  cardDesc.textContent  = 'Clique em Baixar para iniciar o download';
+        if (cardBtnDown) cardBtnDown.onclick = () => {
+            cardBtnDown.textContent = 'Baixando...';
+            cardBtnDown.disabled = true;
+            document.getElementById('btnDownloadUpdate').disabled = true;
+            document.getElementById('btnDownloadUpdate').textContent = 'Baixando...';
+            window.api.downloadUpdate();
+        };
     });
+
     window.api.onUpdateDownloaded?.((info) => {
-        const banner = document.getElementById('updateBanner');
-        const text   = document.getElementById('updateText');
-        const btn    = document.getElementById('btnInstallUpdate');
-        if (banner && text && btn) {
-            text.textContent = `Versão ${info.version} pronta para instalar`;
-            btn.style.display = 'block';
-            btn.onclick = () => window.api.installUpdate();
-        }
+        // Banner: esconde Baixar, mostra Instalar
+        const text    = document.getElementById('updateText');
+        const btnDown = document.getElementById('btnDownloadUpdate');
+        const btnInst = document.getElementById('btnInstallUpdate');
+        if (text)    text.textContent    = `Versão ${info.version} pronta para instalar`;
+        if (btnDown) btnDown.style.display = 'none';
+        if (btnInst) { btnInst.style.display = 'block'; btnInst.onclick = () => window.api.installUpdate(); }
+        // Card Settings
+        const cardTitle   = document.getElementById('updateSettingsTitle');
+        const cardDesc    = document.getElementById('updateSettingsDesc');
+        const cardBtn     = document.getElementById('btnInstallUpdate2');
+        const cardBtnDown = document.getElementById('btnDownloadUpdate2');
+        if (cardTitle)   cardTitle.textContent    = `Versão ${info.version} pronta para instalar`;
+        if (cardDesc)    cardDesc.textContent     = 'Download concluído — clique para instalar';
+        if (cardBtnDown) cardBtnDown.style.display = 'none';
+        if (cardBtn)     { cardBtn.style.display  = 'block'; cardBtn.onclick = () => window.api.installUpdate(); }
     });
 
     // Check if needs setup

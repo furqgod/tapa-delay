@@ -6,9 +6,9 @@ const { StreamDelayServer } = require('./server');
 const { signUp, signIn, signOut, checkAccess, redeemCode } = require('./auth');
 
 // ─── Auto-Update ─────────────────────────────────────────────────────────────
-autoUpdater.allowPrerelease = true;
-autoUpdater.autoDownload    = true;
-autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.allowPrerelease      = true;
+autoUpdater.autoDownload         = false; // usuário decide quando baixar
+autoUpdater.autoInstallOnAppQuit = false; // só instala quando clicar no botão
 
 let mainWindow  = null;
 let loginWindow = null;
@@ -16,6 +16,42 @@ let tray        = null;
 let server      = null;
 
 app.setName('Tapa Delay');
+
+// ─── Single Instance Lock ────────────────────────────────────────────────────
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit(); // segunda instância: fecha sem iniciar nada
+} else {
+    app.on('second-instance', () => {
+        // Usuário tentou abrir de novo — mostra a janela existente
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        } else if (loginWindow) {
+            loginWindow.show();
+            loginWindow.focus();
+        }
+    });
+
+    // ─── App Ready (só roda na instância principal) ──────────────────────────
+    app.whenReady().then(async () => {
+        // Servidor RTMP inicia UMA VEZ e nunca para (evita EADDRINUSE ao trocar de conta)
+        server = new StreamDelayServer();
+        server.start();
+        server.setLogPath(path.join(app.getPath('userData'), 'tapa-delay.log'));
+        server.setStreamingBlocked(true); // bloqueado até auth ser confirmado
+
+        const access = await checkAccess();
+        const isLoggedIn = access.reason !== 'not_logged_in' && access.reason !== 'error';
+        if (isLoggedIn) {
+            startApp(access);
+        } else {
+            createLoginWindow();
+        }
+        app.on('activate', () => mainWindow?.show());
+    });
+}
 
 // ─── Janela de Login ────────────────────────────────────────────────────────
 
@@ -45,15 +81,7 @@ function createLoginWindow() {
 
 // ─── App Principal ──────────────────────────────────────────────────────────
 
-function startApp(accessInfo) {
-    createMainWindow(accessInfo);
-    createTray();
-
-    server = new StreamDelayServer();
-    server.start();
-    server.setLogPath(path.join(app.getPath('userData'), 'tapa-delay.log'));
-    if (!accessInfo.hasAccess) server.setStreamingBlocked(true);
-
+function attachServerEvents() {
     server.on('status', (data) => {
         if (mainWindow && !mainWindow.isDestroyed())
             mainWindow.webContents.send('status-update', data);
@@ -62,6 +90,14 @@ function startApp(accessInfo) {
         if (mainWindow && !mainWindow.isDestroyed())
             mainWindow.webContents.send('stats-update', data);
     });
+}
+
+function startApp(accessInfo) {
+    createMainWindow(accessInfo);
+    createTray();
+    // Servidor já está rodando — só configura acesso e reconecta eventos
+    server.setStreamingBlocked(!accessInfo.hasAccess);
+    attachServerEvents();
 }
 
 function createMainWindow(accessInfo) {
@@ -140,17 +176,6 @@ function createTray() {
 
 // ─── App Ready ───────────────────────────────────────────────────────────────
 
-app.whenReady().then(async () => {
-    const access = await checkAccess();
-    const isLoggedIn = access.reason !== 'not_logged_in' && access.reason !== 'error';
-    if (isLoggedIn) {
-        startApp(access);
-    } else {
-        createLoginWindow();
-    }
-    app.on('activate', () => mainWindow?.show());
-});
-
 // ─── IPC — Auth ──────────────────────────────────────────────────────────────
 
 ipcMain.handle('auth:login',        async (_, { email, password }) => signIn(email, password));
@@ -176,13 +201,13 @@ ipcMain.on('auth:close-login', () => app.quit());
 ipcMain.handle('app:logout', async () => {
     await signOut();
     app.isQuiting = true;
+    // Não para o servidor RTMP — só bloqueia streaming e desanexa eventos
     server?.removeAllListeners();
-    try { server?.nms?.stop(); } catch {}
+    server?.setStreamingBlocked(true);
     mainWindow?.destroy();
     mainWindow = null;
     tray?.destroy();
     tray = null;
-    server = null;
     app.isQuiting = false;
     createLoginWindow();
     return { success: true };
@@ -196,7 +221,8 @@ ipcMain.handle('app:version',         () => app.getVersion());
 
 // ─── IPC — Janela Principal ──────────────────────────────────────────────────
 
-ipcMain.on('update-install', () => { app.isQuiting = true; autoUpdater.quitAndInstall(); });
+ipcMain.on('update-download', () => autoUpdater.downloadUpdate().catch(() => {}));
+ipcMain.on('update-install',  () => { app.isQuiting = true; autoUpdater.quitAndInstall(); });
 
 ipcMain.on('window-min',   () => mainWindow?.minimize());
 ipcMain.on('window-max',   () => {
