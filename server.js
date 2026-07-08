@@ -28,6 +28,48 @@ class VirtualSubscriber {
     close() {}
 }
 
+// Reescreve o timestamp (dts) de cada tag FLV antes de ela ir pro stdin do writer,
+// como única autoridade de tempo — substitui o -use_wallclock_as_timestamps do FFmpeg.
+// Necessário pra habilitar -c:v copy (passthrough): sem regeneração de timing pelo
+// FFmpeg, os timestamps que chegam precisam já estar corretos e monotônicos.
+// Áudio e vídeo são linhas do tempo INDEPENDENTES — cada uma tem seu próprio relógio.
+class TimestampRemapper {
+    constructor() {
+        this._clocks = { 8: { lastOutputTs: 0, lastInputTs: null }, 9: { lastOutputTs: 0, lastInputTs: null } };
+    }
+    // Chamar em qualquer ponto de descontinuidade conhecida (transição de delay,
+    // writer novo) — força a próxima tag de cada tipo a avançar só um passo pequeno em
+    // vez de herdar o salto real entre o timestamp original antigo e o novo.
+    reset() {
+        this._clocks[8].lastInputTs = null;
+        this._clocks[9].lastInputTs = null;
+    }
+    // Retorna null se a tag deve ser DESCARTADA (chegou fora de ordem — ex: replay do
+    // GOP cache ainda "pingando" via setTimeout enquanto dados ao vivo já avançaram o
+    // relógio). Forçar essa tag pra frente em vez de descartar quebra a ordem de
+    // decodificação (visto em teste offline: "co located POCs unavailable" + "Packets
+    // are not in the proper order with respect to DTS").
+    remap(buf) {
+        if (buf.length < 12 || (buf[0] !== 8 && buf[0] !== 9)) return buf;
+        const clock = this._clocks[buf[0]];
+        const originalTs = (buf[7] << 24) | (buf[4] << 16) | (buf[5] << 8) | buf[6];
+        if (clock.lastInputTs !== null) {
+            const natural = originalTs - clock.lastInputTs;
+            if (natural < 0) return null; // fora de ordem — descarta, não força
+            clock.lastOutputTs += natural <= 1000 ? natural : 33; // salto suspeito → ~1 frame
+        } else {
+            clock.lastOutputTs += 33;
+        }
+        clock.lastInputTs = originalTs;
+        const out = Buffer.from(buf);
+        out[4] = (clock.lastOutputTs >> 16) & 0xFF;
+        out[5] = (clock.lastOutputTs >> 8) & 0xFF;
+        out[6] = clock.lastOutputTs & 0xFF;
+        out[7] = (clock.lastOutputTs >> 24) & 0xFF;
+        return out;
+    }
+}
+
 class StreamDelayServer extends EventEmitter {
     constructor() {
         super();
@@ -49,6 +91,7 @@ class StreamDelayServer extends EventEmitter {
         this._spawnWriters      = {};
         this._reconnectTimers   = {};
         this._resetPending      = {}; // reset pendente por plataforma — evita loops simultâneos
+        this._remappers         = {}; // TimestampRemapper por plataforma
 
         this.buffers              = {};
         this.sentUntils           = {};
@@ -289,12 +332,14 @@ class StreamDelayServer extends EventEmitter {
                 this.isBufferings[name]         = false;
                 this.bufferTransitions[name]    = false;
                 this.transitionStartTimes[name] = null;
+                this._remappers[name]?.reset(); // salto do ponto "N segundos atrás" pro "agora"
             }
         } else if (oldDelay > 0 && this.delay > 0) {
             const newSentUntil = Date.now() - (this.delay * 1000);
             for (const name of active) {
                 this.sentUntils[name]  = newSentUntil;
                 this.drainStarts[name] = 0;
+                this._remappers[name]?.reset(); // reposiciona o ponteiro no buffer, quebra a sequência
             }
         }
         return { delay: this.delay, success: true };
@@ -346,6 +391,7 @@ class StreamDelayServer extends EventEmitter {
         this.isBufferings[name]         = false;
         this.bufferTransitions[name]    = false;
         this.transitionStartTimes[name] = null;
+        this._remappers[name]           = new TimestampRemapper();
 
         // Delay ativo no momento do restart? Reentra em modo transição (como 0→N):
         // volta ao vivo e re-acumula o delay. Evita o loop de reset por "sem frames".
@@ -394,6 +440,7 @@ class StreamDelayServer extends EventEmitter {
                     this.transitionStartTimes[name] = null;
                     this.sentUntils[name]           = now - (this.delay * 1000);
                     this.drainStarts[name]          = 0;
+                    this._remappers[name]?.reset(); // salto do "agora" pro drain N segundos atrás
                 }
             }
         });
@@ -461,18 +508,29 @@ class StreamDelayServer extends EventEmitter {
             const isTwitch  = name === 'twitch';
             const isYoutube = name === 'youtube';
 
+            // Fase 2 (passthrough) — TESTE nas 3 plataformas: não recodifica vídeo, só
+            // remuxa o H.264 que o OBS já mandou (-c:v copy). Sem decode, então sem
+            // -hwaccel cuda. Como os B-frames do OBS passam direto com copy, o bsf precisa
+            // corrigir dts pelo seu PRÓPRIO valor (DTS-STARTDTS) — usar PTS-STARTPTS no dts
+            // quebraria a ordem de decodificação. ATENÇÃO: Kick tem limite de ~6-8Mbps e
+            // fecha a conexão se o OBS mandar mais que isso — passthrough aqui só funciona
+            // se o bitrate do OBS estiver dentro desse limite.
+            const isPassthrough = true;
+
             const writerArgs = [
                 '-rw_timeout', '15000000',
-                '-hwaccel', 'cuda',
+                ...(isPassthrough ? [] : ['-hwaccel', 'cuda']),
+                // -use_wallclock_as_timestamps removido: o TimestampRemapper (JS) agora é
+                // a única autoridade de timestamp, aplicado antes de qualquer write no stdin.
                 '-fflags', '+genpts+discardcorrupt',
-                '-use_wallclock_as_timestamps', '1',
                 '-f', 'flv', '-i', 'pipe:0',
                 '-map', '0:v:0', '-map', '0:a:0',
-                '-c:v', 'h264_nvenc',
-                ...(isKick    ? ['-b:v', '6000k', '-maxrate', '6000k', '-bufsize', '12000k', '-bf', '0', '-g', '60', '-pix_fmt', 'yuv420p'] : []),
-                ...(isTwitch  ? ['-b:v', '8000k', '-maxrate', '8000k', '-bufsize', '16000k', '-bf', '0', '-g', '60', '-pix_fmt', 'yuv420p'] : []),
-                ...(isYoutube ? ['-b:v', '8000k', '-maxrate', '8000k', '-bufsize', '16000k', '-bf', '0', '-g', '60', '-pix_fmt', 'yuv420p'] : []),
-                '-bsf:v', 'setts=pts=PTS-STARTPTS:dts=PTS-STARTPTS',
+                ...(isPassthrough ? ['-c:v', 'copy'] : ['-c:v', 'h264_nvenc', '-preset', 'p4']),
+                ...(!isPassthrough && isKick    ? ['-b:v', '6000k', '-maxrate', '6000k', '-bufsize', '12000k', '-bf', '0', '-g', '60', '-pix_fmt', 'yuv420p'] : []),
+                ...(!isPassthrough && isTwitch  ? ['-b:v', '8000k', '-maxrate', '8000k', '-bufsize', '16000k', '-bf', '0', '-g', '60', '-pix_fmt', 'yuv420p'] : []),
+                ...(isPassthrough
+                    ? ['-bsf:v', 'setts=pts=PTS-STARTPTS:dts=DTS-STARTDTS']
+                    : ['-bsf:v', 'setts=pts=PTS-STARTPTS:dts=PTS-STARTPTS']),
                 '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-ac', '2',
                 '-af', 'aresample=async=1',
                 '-f', 'flv', '-flvflags', 'no_duration_filesize',
@@ -497,10 +555,13 @@ class StreamDelayServer extends EventEmitter {
                     if (trimmed.match(/error|failed|refused|timeout|connection|rtmp|broken|eof/i)) {
                         console.error(`[${name}] ${trimmed}`);
                     }
-                    // Detecta frames reais a ser encodados
+                    // Detecta frames reais sendo processados. Com -c:v copy (passthrough)
+                    // o contador "frame=" pode não incrementar do jeito normal — "size="
+                    // crescendo é prova igualmente válida de que dados estão saindo.
                     if (!hasProgress) {
-                        const m = trimmed.match(/frame=\s*(\d+)/);
-                        if (m && parseInt(m[1]) > 0) hasProgress = true;
+                        const fm = trimmed.match(/frame=\s*(\d+)/);
+                        const sm = trimmed.match(/size=\s*(\d+)/);
+                        if ((fm && parseInt(fm[1]) > 0) || (sm && parseInt(sm[1]) > 0)) hasProgress = true;
                     }
                     // "Output #0" = NVENC inicializado + RTMP conectado.
                     // Só aqui o timer de "sem frames" faz sentido: cold-start do NVENC
@@ -571,8 +632,10 @@ class StreamDelayServer extends EventEmitter {
                     // estar registado (headers, GOP cache inicial) — sem esta limpeza o writer
                     // arranca a meio de um GOP e stuttera até ao próximo keyframe.
                     if (this.delay === 0) {
+                        const remapper = this._remappers[name];
                         for (const chunk of (this.buffers[name] || [])) {
-                            if (writer.stdin && writer.stdin.writable) writer.stdin.write(chunk.data);
+                            const out = remapper ? remapper.remap(chunk.data) : chunk.data;
+                            if (out && writer.stdin && writer.stdin.writable) writer.stdin.write(out);
                         }
                     }
                     console.log(`[StreamDelay] ✓ Writer ${name} iniciado`);
@@ -587,8 +650,12 @@ class StreamDelayServer extends EventEmitter {
 
             if (this.delay > 0 && prerollChunks.length > 1) {
                 const t0 = prerollChunks[0].time;
+                const remapper = this._remappers[name];
                 prerollChunks.forEach(chunk => {
-                    setTimeout(() => { if (writer.stdin && writer.stdin.writable) writer.stdin.write(chunk.data); }, chunk.time - t0);
+                    setTimeout(() => {
+                        const out = remapper ? remapper.remap(chunk.data) : chunk.data;
+                        if (out && writer.stdin && writer.stdin.writable) writer.stdin.write(out);
+                    }, chunk.time - t0);
                 });
                 const dur = prerollChunks[prerollChunks.length - 1].time - t0;
                 console.log(`[StreamDelay] ${name} pré-roll: ${prerollChunks.length} chunks (~${Math.round(dur / 1000)}s)`);
@@ -606,7 +673,10 @@ class StreamDelayServer extends EventEmitter {
     _writeToOutput(platformName, data) {
         const writer = this.writerProcesses[platformName];
         if (writer && writer.stdin.writable) {
-            try { writer.stdin.write(data); this.bytesOut += data.length; } catch (e) {}
+            const remapper = this._remappers[platformName];
+            const out = remapper ? remapper.remap(data) : data;
+            if (!out) return; // fora de ordem — descartado pelo remapper
+            try { writer.stdin.write(out); this.bytesOut += out.length; } catch (e) {}
         }
     }
 
@@ -635,7 +705,15 @@ class StreamDelayServer extends EventEmitter {
         this.virtualSubscribers = {};
 
         for (const [, writer] of Object.entries(this.writerProcesses)) {
-            if (writer) { writer._expectedClose = true; writer.kill('SIGKILL'); }
+            if (!writer) continue;
+            writer._expectedClose = true;
+            // Fecha o stdin em vez de matar na hora — o FFmpeg processa o que sobrou e
+            // encerra a conexão RTMP de forma limpa, avisando a plataforma que a live
+            // ACABOU (em vez de um corte abrupto, que a Twitch/YouTube interpretam como
+            // "conexão caiu, pode voltar" e mostram o overlay de "reconectando").
+            try { writer.stdin.end(); } catch {}
+            const killTimer = setTimeout(() => { try { writer.kill('SIGKILL'); } catch {} }, 2000);
+            writer.once('close', () => clearTimeout(killTimer));
         }
         this.writerProcesses = {};
 

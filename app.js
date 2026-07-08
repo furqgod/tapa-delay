@@ -265,6 +265,12 @@ const platformCtrlMap = [
     { name: 'kick', bar: 'kickLiveBar', dot: 'kickWriterDot', label: 'kickWriterLabel', btn: 'btnKickCtrl' },
 ];
 
+// Cooldown após clicar Parar — algumas plataformas (ex: YouTube) levam ~10s pra
+// realmente encerrar a conexão anterior do lado delas; reiniciar antes disso pode
+// colidir com a conexão antiga ainda fechando.
+const STOP_COOLDOWN_MS = 10000;
+const stopCooldowns = {}; // { [platform]: timestamp em que o botão libera de novo }
+
 function updateWriterControls(writers, connected) {
     for (const p of platformCtrlMap) {
         const bar = els[p.bar];
@@ -288,18 +294,44 @@ function updateWriterControls(writers, connected) {
 
         bar.style.display = 'flex';
 
+        // Cooldown ativo: não deixa o status do backend sobrescrever o countdown
+        if (stopCooldowns[p.name] && Date.now() < stopCooldowns[p.name]) continue;
+
         if (info && info.active) {
             dot.classList.remove('stopped');
             label.textContent = 'Transmitindo';
             btn.textContent = 'Parar';
             btn.classList.remove('restart');
+            btn.disabled = false;
         } else {
             dot.classList.add('stopped');
             label.textContent = info?.manuallyStopped ? 'Parado' : 'Reconectando...';
             btn.textContent = 'Iniciar';
             btn.classList.add('restart');
+            btn.disabled = false;
         }
     }
+}
+
+function startStopCooldown(p) {
+    const btn = els[p.btn];
+    if (!btn) return;
+    const until = Date.now() + STOP_COOLDOWN_MS;
+    stopCooldowns[p.name] = until;
+    btn.disabled = true;
+
+    const tick = () => {
+        const remaining = Math.ceil((until - Date.now()) / 1000);
+        if (remaining <= 0) {
+            delete stopCooldowns[p.name];
+            btn.disabled = false;
+            updateWriterControls(window._lastWriters, state.connected);
+            return;
+        }
+        btn.textContent = `Aguarde ${remaining}s`;
+        setTimeout(tick, 250);
+    };
+    tick();
 }
 
 platformCtrlMap.forEach(p => {
@@ -308,6 +340,7 @@ platformCtrlMap.forEach(p => {
         const info = window._lastWriters && window._lastWriters[p.name];
         if (info && info.active) {
             await window.api.stopPlatform(p.name);
+            startStopCooldown(p);
         } else {
             await window.api.startPlatform(p.name);
         }

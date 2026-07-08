@@ -1,6 +1,6 @@
 {
   "name": "tapa-delay",
-  "version": "3.0.3-beta",
+  "version": "3.0.4-beta",
   "description": "Tapa Delay — delay dinâmico para streams",
   "productName": "Tapa Delay",
   "main": "main.js",
