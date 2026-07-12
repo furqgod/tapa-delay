@@ -112,6 +112,7 @@ els.currentDelayDisplay.addEventListener('click', () => {
 
     els.currentDelayDisplay.contentEditable = 'true';
     els.currentDelayDisplay.classList.add('editing');
+    els.currentDelayDisplay.textContent = ''; // some com o número atual, aguarda o novo
 
     // Posiciona cursor no final sem selecionar o texto
     const range = document.createRange();
@@ -392,43 +393,6 @@ function updateUI() {
     });
 }
 
-// Avatar — inicial do nome (ou do email se não houver nome)
-function setAvatarInitial(nameOrEmail) {
-    const el = document.getElementById('avatarInitial');
-    if (!el || !nameOrEmail) return;
-    el.textContent = nameOrEmail.trim()[0].toUpperCase();
-}
-
-function showAvatarPhoto(dataUrl) {
-    const photo  = document.getElementById('avatarPhoto');
-    const initial = document.getElementById('avatarInitial');
-    if (!photo) return;
-    photo.src = dataUrl;
-    photo.style.display = 'block';
-    if (initial) initial.style.display = 'none';
-}
-
-function loadAvatar() {
-    const saved = localStorage.getItem(uKey('profilePhoto'));
-    if (saved) showAvatarPhoto(saved);
-}
-
-document.getElementById('avatarBtn')?.addEventListener('click', () => {
-    document.getElementById('avatarInput')?.click();
-});
-
-document.getElementById('avatarInput')?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        const dataUrl = ev.target.result;
-        localStorage.setItem(uKey('profilePhoto'), dataUrl);
-        showAvatarPhoto(dataUrl);
-    };
-    reader.readAsDataURL(file);
-});
-
 const PAYMENT_LINK = 'https://buy.stripe.com/test_4gM6oHeUJfHd1FIe5983C00';
 let _authUserId = null;
 let _authEmail  = null;
@@ -465,8 +429,6 @@ function applyAuthInfo(info) {
 
     // Mostra nome se existir, senão o email
     if (emailEl)  emailEl.textContent  = info.name || info.email || '—';
-    setAvatarInitial(info.name || info.email);
-    loadAvatar();
     if (statusEl) statusEl.textContent = info.reason === 'trial'
         ? `Trial — ${info.daysLeft} dias restantes`
         : info.reason === 'active_subscription' ? 'Assinatura ativa ✓' : '';
@@ -622,3 +584,88 @@ if (isElectron) {
 }
 
 console.log('🎮 StreamDelay BR v1.0.0 iniciado!' + (isElectron ? ' (Electron)' : ' (Browser)'));
+
+// ─── Background Ripple Effect ────────────────────────────────────────────────
+// Baseado em uiverse-style / aceternity background-ripple-effect, adaptado pro
+// tema do app. Clique em qualquer área vazia do fundo dispara a onda.
+function initRipple(container, cellSize) {
+    const rect = container.getBoundingClientRect();
+    const cols = Math.ceil((rect.width * 1.4) / cellSize);
+    const rows = Math.ceil((rect.height * 1.4) / cellSize);
+    const grid = document.createElement('div');
+    grid.className = 'ripple-grid';
+    // A grade é só visual agora — o clique é capturado no document (veja
+    // abaixo), não precisa mais "atravessar" pointer-events pra chegar nela.
+    // Isso evita o conflito com scroll/botões que existia antes.
+    grid.style.pointerEvents = 'none';
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+    grid.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+    grid.style.width = (cols * cellSize) + 'px';
+    grid.style.height = (rows * cellSize) + 'px';
+
+    const cells = [];
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'ripple-cell';
+            cell.dataset.row = r;
+            cell.dataset.col = c;
+            grid.appendChild(cell);
+            cells.push(cell);
+        }
+    }
+    container.appendChild(grid);
+
+    function triggerRipple(row, col) {
+        // 1ª passada: calcula delay/duration e tira a classe de todo mundo
+        cells.forEach(cell => {
+            const cr = +cell.dataset.row, cc = +cell.dataset.col;
+            const dist = Math.hypot(row - cr, col - cc);
+            const delay = Math.max(0, dist * 40);
+            const duration = 220 + dist * 65;
+            cell.style.setProperty('--delay', delay + 'ms');
+            cell.style.setProperty('--duration', duration + 'ms');
+            cell.classList.remove('rippling');
+        });
+        // 1 único reflow forçado pra grade inteira (em vez de 1 por célula)
+        void grid.offsetHeight;
+        // 2ª passada: reaplica a classe, dispara a animação de todas de uma vez
+        cells.forEach(cell => cell.classList.add('rippling'));
+    }
+
+    // Clique em QUALQUER lugar do app (mesmo em cima de botões/cards) dispara
+    // a onda na célula mais próxima do ponto clicado. Delegado no document
+    // pra não depender de pointer-events em nada — resolve de vez o conflito
+    // entre "clique atravessa até a célula" vs "página precisa de scroll".
+    document.addEventListener('click', (e) => {
+        // Só dispara em clique de fundo vazio — cabeçalho, presets, botões,
+        // qualquer card (Streaming/Settings/About/Overlay/Update) e o número
+        // principal não devem animar o background. Pega toda classe
+        // "*-card" de uma vez em vez de listar uma por uma.
+        if (e.target.closest(
+            'button, a, input, select, label, #currentDelayDisplay, ' +
+            '.app-header-split, .update-banner, [class*="-card"]'
+        )) return;
+
+        const gridRect = grid.getBoundingClientRect();
+        const col = Math.round((e.clientX - gridRect.left) / cellSize);
+        const row = Math.round((e.clientY - gridRect.top) / cellSize);
+        if (row >= 0 && row < rows && col >= 0 && col < cols) {
+            triggerRipple(row, col);
+        }
+    });
+}
+const rippleLayer = document.getElementById('rippleLayer');
+if (rippleLayer) initRipple(rippleLayer, 40);
+
+// ─── Logo: hover revela o texto, clique mostra agradecimento do beta ────────
+const brandLogo = document.getElementById('brandLogo');
+if (brandLogo) {
+    brandLogo.addEventListener('click', () => {
+        brandLogo.classList.add('thanked');
+    });
+    brandLogo.addEventListener('mouseleave', () => {
+        brandLogo.classList.remove('thanked');
+    });
+}

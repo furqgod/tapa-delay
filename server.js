@@ -112,6 +112,14 @@ class StreamDelayServer extends EventEmitter {
 
     setLogPath(p) {
         this.logPath = p;
+        // Sem isso o log cresce pra sempre (só appendFileSync, nunca limpo) — num
+        // streamer que usa todo dia, em meses vira um arquivo gigante. Rotaciona no
+        // startup: se passou de ~5MB, guarda o conteúdo anterior num .old e começa limpo.
+        try {
+            if (fs.statSync(p).size > 5 * 1024 * 1024) {
+                fs.renameSync(p, p.replace(/\.log$/, '') + '.old.log');
+            }
+        } catch {} // arquivo ainda não existe (primeira execução) — nada a rotacionar
         this._writeLog('════════════════════════════════');
         this._writeLog('▶  Tapa Delay iniciado');
         this._writeLog('════════════════════════════════');
@@ -244,7 +252,16 @@ class StreamDelayServer extends EventEmitter {
         this.platforms[platform].manuallyStopped = true;
         this.platforms[platform].persistentReconnect = false;
         this._unsubscribePlatform(platform);
-        if (this.writerProcesses[platform]) this.writerProcesses[platform].kill('SIGKILL');
+        const writer = this.writerProcesses[platform];
+        if (writer) {
+            writer._expectedClose = true;
+            // Mesma técnica do _stopPipeline: fecha o stdin em vez de matar na hora,
+            // pra plataforma entender que a live ACABOU (não que caiu e vai voltar).
+            try { writer.stdin.end(); } catch {}
+            const killTimer = setTimeout(() => { try { writer.kill('SIGKILL'); } catch {} }, 2000);
+            writer.once('close', () => clearTimeout(killTimer));
+            delete this.writerProcesses[platform];
+        }
         console.log(`[StreamDelay] ${platform} parado manualmente`);
         this.emit('status', this.getStatus());
         return { success: true };
@@ -348,6 +365,11 @@ class StreamDelayServer extends EventEmitter {
     setMode(mode) { this.mode = mode; return { mode: this.mode, success: true }; }
 
     _findFFmpeg() {
+        // DIAGNÓSTICO TEMPORÁRIO: permite apontar pra um FFmpeg específico via variável
+        // de ambiente, pra testar versões diferentes sem mexer no fallback padrão.
+        if (process.env.FFMPEG_PATH && require('fs').existsSync(process.env.FFMPEG_PATH)) {
+            return process.env.FFMPEG_PATH;
+        }
         try {
             const bundled = require('path').join(process.resourcesPath, 'ffmpeg.exe');
             if (require('fs').existsSync(bundled)) return bundled;
@@ -454,23 +476,19 @@ class StreamDelayServer extends EventEmitter {
             if (broadcast.flvAudioHeader) vs.sendBuffer(broadcast.flvAudioHeader);
             if (broadcast.flvVideoHeader) vs.sendBuffer(broadcast.flvVideoHeader);
             // Em modo transição o writer começa num keyframe limpo (evita non-existing PPS)
+            // Replay do GOP cache SÍNCRONO, no mesmo tick, ANTES de inscrever no broadcast.
+            // Antes isso era espalhado via setTimeout (pelo timestamp original de cada
+            // chunk) porque o FFmpeg usava -use_wallclock_as_timestamps e carimbar tudo
+            // no mesmo instante corrompia a cadência. Esse flag foi removido — o
+            // TimestampRemapper é a única autoridade de tempo agora e deriva o timestamp
+            // de saída do valor original de cada tag, não do instante de chegada. Como
+            // JS é single-threaded, replay síncrono + subscribe só depois garante que
+            // nenhum dado ao vivo se entrelaça com o replay: sem isso, um restart de
+            // plataforma sozinha (com as outras já ao vivo) descartava boa parte do GOP
+            // cache por "fora de ordem" e desalinhava áudio/vídeo (validado offline em
+            // scratchpad/passthrough_test/test_av_sync_fix.js).
             if ((this.delay === 0 || this.bufferTransitions[name]) && broadcast.flvGopCache) {
-                const gopChunks = [...broadcast.flvGopCache];
-                if (gopChunks.length > 0) {
-                    // Timestamp FLV (dts) vem nos bytes 4-7 do tag header. Reenviar o
-                    // cache inteiro de uma vez (mesmo tick) faz o FFmpeg — que usa
-                    // -use_wallclock_as_timestamps — carimbar todos os frames quase no
-                    // mesmo instante, corrompendo a cadência logo no início do restart
-                    // (stutter). Espaçar pelo timestamp original evita a rajada.
-                    const readTs = (buf) => (buf[7] << 24) | (buf[4] << 16) | (buf[5] << 8) | buf[6];
-                    const t0 = readTs(gopChunks[0]);
-                    gopChunks.forEach(chunk => {
-                        const wait = Math.max(0, readTs(chunk) - t0);
-                        setTimeout(() => {
-                            if (this.virtualSubscribers[name] === vs) vs.sendBuffer(chunk);
-                        }, wait);
-                    });
-                }
+                for (const chunk of broadcast.flvGopCache) vs.sendBuffer(chunk);
             }
             broadcast.subscribers.set(vs.id, vs);
         }

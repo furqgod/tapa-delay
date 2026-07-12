@@ -15,6 +15,13 @@ let loginWindow = null;
 let tray        = null;
 let server      = null;
 
+// Sem isso, qualquer erro não tratado no processo principal (durante uma live de
+// horas) fecha o app inteiro em silêncio e derruba as 3 plataformas juntas. Loga
+// e deixa o processo vivo — o pior cenário vira "algo travou, veja o log" em vez
+// de "a live morreu sem aviso".
+process.on('uncaughtException', (e) => server?._writeLog(`💥 Erro não tratado: ${e.stack}`));
+process.on('unhandledRejection', (e) => server?._writeLog(`💥 Promise rejeitada: ${e}`));
+
 app.setName('Tapa Delay');
 
 // ─── Single Instance Lock ────────────────────────────────────────────────────
@@ -58,8 +65,8 @@ if (!gotTheLock) {
 function createLoginWindow() {
     if (loginWindow) return;
     loginWindow = new BrowserWindow({
-        width: 440,
-        height: 600,
+        width: 600,
+        height: 400,
         resizable: false,
         frame: false,
         backgroundColor: '#0a0a0c',
@@ -104,8 +111,8 @@ function createMainWindow(accessInfo) {
     mainWindow = new BrowserWindow({
         width: 960,
         height: 640,
-        minWidth: 800,
-        minHeight: 500,
+        minWidth: 480,
+        minHeight: 288,
         frame: false,
         backgroundColor: '#0a0a0c',
         webPreferences: {

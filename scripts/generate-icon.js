@@ -17,25 +17,24 @@ const HTML = `<!DOCTYPE html>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6366F1"/>
-      <stop offset="100%" stop-color="#4338CA"/>
-    </linearGradient>
-  </defs>
-  <!-- Fundo quadrado arredondado -->
-  <rect width="256" height="256" rx="56" ry="56" fill="url(#grad)"/>
-  <!-- Texto TD centralizado -->
-  <text
-    x="128"
-    y="172"
-    font-family="'Arial Black', 'Arial Bold', Arial, sans-serif"
-    font-size="112"
-    font-weight="900"
-    fill="white"
-    text-anchor="middle"
-    letter-spacing="-4"
-  >TD</text>
+  <!-- Fundo quadrado arredondado, tom escuro do app -->
+  <rect width="256" height="256" rx="56" ry="56" fill="#1a1a1c"/>
+  <!-- Mão (logo nova), centralizada. viewBox original 0 0 596 645 escalado
+       e centralizado dentro do quadrado com margem. -->
+  <g transform="translate(35.6, 28) scale(0.3101)">
+    <g>
+      <g>
+        <path d="M339.355,251.224l0,-145.833c0,-25.142 20.692,-45.833 45.833,-45.833c25.142,0 45.833,20.692 45.833,45.833l0,145.833" style="fill:none;fill-rule:nonzero;stroke:#3b82f6;stroke-width:31.25px;"/>
+        <path d="M431.022,251.224c125,0 125,145.833 83.333,208.333c-41.667,104.167 -166.667,125 -270.833,125c-125,0 -187.5,-83.333 -187.5,-208.333l0,-83.333" style="fill:none;fill-rule:nonzero;stroke:#3b82f6;stroke-width:31.25px;"/>
+        <path d="M56.022,292.891l0,-20.833c0,-25.142 20.692,-45.833 45.833,-45.833c25.142,0 45.833,20.692 45.833,45.833l0,20.833" style="fill:none;fill-rule:nonzero;stroke:#3b82f6;stroke-width:31.25px;"/>
+        <path d="M147.689,292.891l0,-54.167c0,-25.142 20.692,-45.833 45.833,-45.833c25.142,0 45.833,20.692 45.833,45.833l0,33.333" style="fill:none;fill-rule:nonzero;stroke:#3b82f6;stroke-width:31.25px;"/>
+        <path d="M239.355,272.057l0,-50c0,-27.429 22.571,-50 50,-50c27.429,0 50,22.571 50,50l0,29.167" style="fill:none;fill-rule:nonzero;stroke:#3b82f6;stroke-width:31.25px;"/>
+        <path d="M212.272,451.647c68.664,70.27 137.332,70.27 205.996,0" style="fill:none;fill-rule:nonzero;stroke:#3b82f6;stroke-width:36.96px;"/>
+        <circle cx="364.857" cy="381.075" r="35.286" style="fill:#3b82f6;"/>
+        <circle cx="262.362" cy="381.075" r="35.286" style="fill:#3b82f6;"/>
+      </g>
+    </g>
+  </g>
 </svg>
 </body>
 </html>`;

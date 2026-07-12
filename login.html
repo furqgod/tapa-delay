@@ -41,8 +41,8 @@
 
   body {
     position: relative;
-    width: 440px;
-    height: 600px;
+    width: 600px;
+    height: 400px;
     overflow: hidden;
     background: var(--bg);
     color: var(--text);
@@ -50,7 +50,7 @@
     font-size: 14px;
     -webkit-font-smoothing: antialiased;
     user-select: none;
-    border-radius: 16px;
+    border-radius: 12px;
     border: 1px solid #1c1c24;
     box-shadow: 0 40px 100px -30px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.02);
   }
@@ -100,7 +100,7 @@
   .stage {
     position: relative;
     z-index: 1;
-    height: calc(600px - 38px);
+    height: calc(400px - 38px);
     overflow: hidden;
   }
 
@@ -110,7 +110,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 8px 38px 28px;
+    padding: 6px 42px 14px;
     opacity: 0;
     visibility: hidden;
     transform: translateX(24px);
@@ -128,43 +128,67 @@
   }
   .screen.leaving-left { transform: translateX(-24px); }
 
-  /* ── Brand ── */
-  .brand {
+  /* ── Split layout (form esquerda / espaço reservado à direita) ──
+     .screen--split fica em coluna: a linha (form + logo) em cima, ocupando
+     o espaço disponível, e o "Criar conta"/"Entrar" embaixo, à direita,
+     ocupando a largura toda. */
+  .screen--split {
+    flex-direction: column;
+  }
+  .split-row {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    align-items: stretch;
+    gap: 28px;
+  }
+  .split-row .form-col {
+    flex: 0 0 300px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .split-row .empty-col {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Brand (logo movida pra coluna direita, vazia) ── */
+  .side-brand {
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-top: 14px;
+    gap: 10px;
   }
-  .logo {
-    width: 62px; height: 62px;
-    border-radius: 18px;
-    background: linear-gradient(150deg, var(--purple) 0%, var(--purple-2) 100%);
-    display: grid; place-items: center;
-    font-weight: 800; font-size: 24px;
-    letter-spacing: -0.5px;
-    color: #fff;
-    box-shadow: 0 10px 30px -8px var(--purple-glow), inset 0 1px 0 rgba(255,255,255,0.18);
-    position: relative;
+  .side-logo-icon,
+  .side-logo-text {
+    height: 48px;
+    overflow: hidden;
   }
-  .logo::after {
-    content: "";
-    position: absolute; inset: 0;
-    border-radius: inherit;
-    border: 1px solid rgba(255,255,255,0.08);
+  .side-logo-icon { width: 46px; }
+  .side-logo-text { width: 162px; }
+  .side-logo-icon img,
+  .side-logo-text img {
+    height: 48px;
+    width: 208px;
+    display: block;
   }
-  .brand h1 { margin-top: 16px; font-size: 23px; font-weight: 700; letter-spacing: -0.4px; }
-  .brand p  { margin-top: 5px; font-size: 13px; color: var(--muted); font-weight: 400; }
+  .side-logo-text img {
+    margin-left: -46px;
+  }
 
   /* ── Form ── */
   form {
     width: 100%;
-    margin-top: 22px;
+    margin-top: 10px;
     display: flex;
     flex-direction: column;
-    gap: 13px;
+    gap: 7px;
   }
 
-  .field { display: flex; flex-direction: column; gap: 7px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
   .field label {
     font-size: 11.5px; font-weight: 600;
     letter-spacing: 0.3px; text-transform: uppercase;
@@ -172,7 +196,7 @@
   }
   .input-wrap { position: relative; display: flex; align-items: center; }
   .input-wrap input {
-    width: 100%; height: 46px;
+    width: 100%; height: 38px;
     background: var(--panel);
     border: 1px solid var(--stroke);
     border-radius: var(--radius-sm);
@@ -210,14 +234,14 @@
   /* ── Buttons ── */
   .actions {
     width: 100%;
-    margin-top: 18px;
+    margin-top: 8px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
 
   .btn {
-    height: 47px; border: none;
+    height: 40px; border: none;
     border-radius: var(--radius-sm);
     font-family: inherit; font-size: 14.5px;
     font-weight: 600; letter-spacing: 0.1px;
@@ -256,13 +280,13 @@
   .btn-secondary:hover { background: var(--panel-2); }
   .btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
 
-  /* ── Switch (Não tem conta?) ── */
+  /* ── Switch (Não tem conta?) — agora embaixo da janela toda, à direita ── */
   .switch {
-    margin-top: auto;
-    padding-top: 18px;
+    width: 100%;
+    padding-top: 10px;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
     gap: 6px;
     font-size: 13px;
   }
@@ -315,7 +339,7 @@
     align-items: center; justify-content: center;
     flex: 1; width: 100%; text-align: center;
   }
-  .big-icon    { font-size: 46px; margin-bottom: 14px; }
+  .big-icon    { font-size: 46px; line-height: 1; margin-bottom: 14px; }
   .screen-title{ font-size: 20px; font-weight: 700; margin-bottom: 8px; }
   .screen-desc {
     font-size: 13px; color: var(--muted);
@@ -363,6 +387,27 @@
   }
   .promo-wrap .btn-promo:hover  { filter: brightness(1.08); }
   .promo-wrap .btn-promo:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* Confirmar chave (acesso antecipado) */
+  .key-confirm-btn {
+    width: 46px; height: 46px;
+    flex-shrink: 0;
+    border: none; border-radius: var(--radius-sm);
+    background: var(--panel);
+    color: var(--muted-2);
+    display: grid; place-items: center;
+    cursor: not-allowed;
+    transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 120ms ease;
+  }
+  .key-confirm-btn svg { width: 20px; height: 20px; }
+  .key-confirm-btn.enabled {
+    background: linear-gradient(140deg, #f0555a 0%, #c81e2b 100%);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 8px 20px -8px rgba(200,30,43,0.45), inset 0 1px 0 rgba(255,255,255,0.16);
+  }
+  .key-confirm-btn.enabled:hover  { filter: brightness(1.08); }
+  .key-confirm-btn.enabled:active { transform: translateY(1px) scale(0.95); }
 </style>
 </head>
 <body>
@@ -379,37 +424,39 @@
   </div>
 
   <!-- LOGIN -->
-  <section class="screen" id="screenLogin">
-    <div class="brand">
-      <div class="logo">TD</div>
-      <h1>Tapa Delay</h1>
-      <p>Entre para controlar o seu delay</p>
+  <section class="screen screen--split" id="screenLogin">
+    <div class="split-row">
+      <div class="form-col">
+        <form id="formLogin" autocomplete="off" onsubmit="return false;">
+          <div class="field">
+            <label for="inputEmail">Email</label>
+            <div class="input-wrap">
+              <input id="inputEmail" type="email" placeholder="voce@exemplo.com" autocomplete="email">
+            </div>
+          </div>
+          <div class="field">
+            <label for="inputPassword">Senha</label>
+            <div class="input-wrap has-eye">
+              <input id="inputPassword" type="password" placeholder="••••••••">
+              <button type="button" class="eye" data-target="inputPassword" aria-label="Mostrar senha">
+                <svg class="eye-on"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2"/><path d="M9.4 5.2A9.5 9.5 0 0 1 12 5c6.5 0 10 7 10 7a16 16 0 0 1-3.1 3.9"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a9.5 9.5 0 0 0 2.6-.4"/></svg>
+              </button>
+            </div>
+          </div>
+          <div id="msgLogin" class="msg"></div>
+          <div class="actions">
+            <button id="btnSubmit" class="btn btn-primary" type="submit">Entrar</button>
+          </div>
+        </form>
+      </div>
+      <div class="empty-col">
+        <div class="side-brand">
+          <div class="side-logo-icon"><img src="assets/logo-wordmark.svg" alt=""></div>
+          <div class="side-logo-text"><img src="assets/logo-wordmark.svg" alt="Tapa Delay"></div>
+        </div>
+      </div>
     </div>
-
-    <form id="formLogin" autocomplete="off" onsubmit="return false;">
-      <div class="field">
-        <label for="inputEmail">Email</label>
-        <div class="input-wrap">
-          <input id="inputEmail" type="email" placeholder="voce@exemplo.com" autocomplete="email">
-        </div>
-      </div>
-      <div class="field">
-        <label for="inputPassword">Senha</label>
-        <div class="input-wrap has-eye">
-          <input id="inputPassword" type="password" placeholder="••••••••">
-          <button type="button" class="eye" data-target="inputPassword" aria-label="Mostrar senha">
-            <svg class="eye-on"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-            <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2"/><path d="M9.4 5.2A9.5 9.5 0 0 1 12 5c6.5 0 10 7 10 7a16 16 0 0 1-3.1 3.9"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a9.5 9.5 0 0 0 2.6-.4"/></svg>
-          </button>
-        </div>
-      </div>
-      <div id="msgLogin" class="msg"></div>
-      <div class="actions">
-        <button id="btnSubmit" class="btn btn-primary" type="submit">Entrar</button>
-        <button id="btnSubscribeLogin" class="btn btn-amber" type="button">Assinar</button>
-      </div>
-    </form>
-
     <div class="switch">
       <span>Não tem conta?</span>
       <button type="button" data-goto="screenSignup">Criar conta</button>
@@ -417,42 +464,45 @@
   </section>
 
   <!-- CRIAR CONTA -->
-  <section class="screen" id="screenSignup">
-    <div class="brand">
-      <div class="logo">TD</div>
-      <h1>Criar conta</h1>
-      <p>Comece a usar o Tapa Delay</p>
+  <section class="screen screen--split" id="screenSignup">
+    <div class="split-row">
+      <div class="form-col">
+        <form id="formSignup" autocomplete="off" onsubmit="return false;">
+          <div class="field">
+            <label for="inputName">Nome</label>
+            <div class="input-wrap">
+              <input id="inputName" type="text" placeholder="Seu nome">
+            </div>
+          </div>
+          <div class="field">
+            <label for="inputEmailSignup">Email</label>
+            <div class="input-wrap">
+              <input id="inputEmailSignup" type="email" placeholder="voce@exemplo.com" autocomplete="email">
+            </div>
+          </div>
+          <div class="field">
+            <label for="inputPasswordSignup">Senha</label>
+            <div class="input-wrap has-eye">
+              <input id="inputPasswordSignup" type="password" placeholder="••••••••">
+              <button type="button" class="eye" data-target="inputPasswordSignup" aria-label="Mostrar senha">
+                <svg class="eye-on"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2"/><path d="M9.4 5.2A9.5 9.5 0 0 1 12 5c6.5 0 10 7 10 7a16 16 0 0 1-3.1 3.9"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a9.5 9.5 0 0 0 2.6-.4"/></svg>
+              </button>
+            </div>
+          </div>
+          <div id="msgSignup" class="msg"></div>
+          <div class="actions">
+            <button id="btnSignupSubmit" class="btn btn-primary" type="submit">Criar conta</button>
+          </div>
+        </form>
+      </div>
+      <div class="empty-col">
+        <div class="side-brand">
+          <div class="side-logo-icon"><img src="assets/logo-wordmark.svg" alt=""></div>
+          <div class="side-logo-text"><img src="assets/logo-wordmark.svg" alt="Tapa Delay"></div>
+        </div>
+      </div>
     </div>
-
-    <form id="formSignup" autocomplete="off" onsubmit="return false;">
-      <div class="field">
-        <label for="inputName">Nome</label>
-        <div class="input-wrap">
-          <input id="inputName" type="text" placeholder="Seu nome">
-        </div>
-      </div>
-      <div class="field">
-        <label for="inputEmailSignup">Email</label>
-        <div class="input-wrap">
-          <input id="inputEmailSignup" type="email" placeholder="voce@exemplo.com" autocomplete="email">
-        </div>
-      </div>
-      <div class="field">
-        <label for="inputPasswordSignup">Senha</label>
-        <div class="input-wrap has-eye">
-          <input id="inputPasswordSignup" type="password" placeholder="••••••••">
-          <button type="button" class="eye" data-target="inputPasswordSignup" aria-label="Mostrar senha">
-            <svg class="eye-on"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-            <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2"/><path d="M9.4 5.2A9.5 9.5 0 0 1 12 5c6.5 0 10 7 10 7a16 16 0 0 1-3.1 3.9"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a9.5 9.5 0 0 0 2.6-.4"/></svg>
-          </button>
-        </div>
-      </div>
-      <div id="msgSignup" class="msg"></div>
-      <div class="actions">
-        <button id="btnSignupSubmit" class="btn btn-primary" type="submit">Criar conta</button>
-      </div>
-    </form>
-
     <div class="switch">
       <span>Já tem conta?</span>
       <button type="button" data-goto="screenLogin">Entrar</button>
@@ -473,35 +523,33 @@
     </div>
   </div>
 
-  <!-- TRIAL EXPIRADO / SEM ASSINATURA -->
-  <div class="screen" id="screenExpired">
-    <div class="info-body">
-      <div class="big-icon">🔒</div>
-      <div class="screen-title" id="expiredTitle">Trial expirado</div>
-      <p class="screen-desc" id="expiredDesc">Seus 30 dias gratuitos chegaram ao fim.<br>Assine para continuar usando o Tapa Delay.</p>
-    </div>
-    <div class="expired-actions">
-      <button class="btn btn-primary" id="btnSubscribe">🚀 Assinar Tapa Delay</button>
-      <button class="btn-secondary" id="btnAlreadyPaid">✅ Já assinei — verificar acesso</button>
-      <div class="promo-divider">— ou —</div>
-      <div class="promo-wrap">
-        <input type="text" id="inputPromoCode" placeholder="Código de trial">
-        <button class="btn-promo" id="btnRedeemCode">Ativar</button>
+  <!-- ACESSO ANTECIPADO (chave) -->
+  <div class="screen" id="screenEarlyAccess">
+    <div class="info-body" id="earlyEntryBody">
+      <div class="screen-title">Acesso Antecipado</div>
+      <p class="screen-desc">Insira a chave de acesso que você recebeu.</p>
+      <div style="width:100%;">
+        <div class="promo-wrap">
+          <input type="text" id="inputEarlyKey" placeholder="Chave de acesso" autocomplete="off">
+          <button type="button" class="key-confirm-btn" id="btnConfirmKey" disabled aria-label="Confirmar chave">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div id="msgEarlyKey" class="msg"></div>
       </div>
-      <div id="msgPromoCode" class="msg"></div>
-      <button class="btn-secondary" id="btnLogoutExpired">Sair da conta</button>
+    </div>
+    <div class="info-body" id="earlySuccessBody" style="display:none;">
+      <div class="big-icon">🎉</div>
+      <p class="screen-desc" style="margin-bottom:0;">Obrigado por participar<br>do acesso antecipado! =)</p>
     </div>
   </div>
 
 </div>
 
 <script>
-const PAYMENT_LINK = 'https://buy.stripe.com/test_4gM6oHeUJfHd1FIe5983C00';
-
 let currentUserId = null;
 let currentEmail  = null;
 let _currentScreen = 'screenLoading';
-let _paymentPollInterval = null;
 
 // ── Screen navigation ──────────────────────────────────────────────────────
 
@@ -575,21 +623,14 @@ function handleAccess(access) {
     return;
   }
 
-  if (access.reason === 'trial_expired') {
-    document.getElementById('expiredTitle').textContent = 'Trial expirado';
-    document.getElementById('expiredDesc').innerHTML = 'Seus 30 dias gratuitos chegaram ao fim.<br>Assine ou use um código de trial.';
-  } else if (access.reason === 'subscription_cancelled') {
-    document.getElementById('expiredTitle').textContent = 'Assinatura cancelada';
-    document.getElementById('expiredDesc').innerHTML = 'Sua assinatura foi cancelada.<br>Renove para continuar usando o Tapa Delay.';
-  } else if (access.reason === 'no_subscription') {
-    document.getElementById('expiredTitle').textContent = 'Bem-vindo!';
-    document.getElementById('expiredDesc').innerHTML = 'Assine o Tapa Delay para começar<br>ou use um código de trial.';
-  } else {
+  if (access.reason === 'not_logged_in' || access.reason === 'error') {
     showMsg('msgLogin', 'Não foi possível verificar o acesso. Tente novamente.');
     showScreen('screenLogin');
     return;
   }
-  showScreen('screenExpired');
+
+  resetEarlyAccessScreen();
+  showScreen('screenEarlyAccess');
 }
 
 // ── Login form ─────────────────────────────────────────────────────────────
@@ -663,81 +704,58 @@ document.getElementById('btnBackLogin').addEventListener('click', function() {
   showScreen('screenLogin');
 });
 
-// ── Assinar (login screen) ─────────────────────────────────────────────────
+// ── Acesso antecipado (chave) ───────────────────────────────────────────────
 
-document.getElementById('btnSubscribeLogin').addEventListener('click', function() {
-  window.authApi.openExternal(PAYMENT_LINK);
-});
-
-// ── Payment polling ────────────────────────────────────────────────────────
-
-function startPaymentPolling() {
-  if (_paymentPollInterval) return;
-  var btn = document.getElementById('btnAlreadyPaid');
-  if (btn) { btn.textContent = '⏳ Aguardando pagamento...'; btn.disabled = true; }
-
-  _paymentPollInterval = setInterval(async function() {
-    var access = await window.authApi.checkAccess();
-    if (access.hasAccess) {
-      clearInterval(_paymentPollInterval);
-      _paymentPollInterval = null;
-      window.authApi.notifySuccess(access);
-    }
-  }, 4000);
+function resetEarlyAccessScreen() {
+  document.getElementById('earlyEntryBody').style.display = '';
+  document.getElementById('earlySuccessBody').style.display = 'none';
+  var input = document.getElementById('inputEarlyKey');
+  var btn   = document.getElementById('btnConfirmKey');
+  input.value = '';
+  input.disabled = false;
+  btn.disabled = true;
+  btn.classList.remove('enabled');
+  clearMsg('msgEarlyKey');
 }
 
-document.getElementById('btnSubscribe').addEventListener('click', function() {
-  var url = PAYMENT_LINK;
-  if (currentUserId) url += '?client_reference_id=' + currentUserId;
-  if (currentEmail)  url += (currentUserId ? '&' : '?') + 'prefilled_email=' + encodeURIComponent(currentEmail);
-  window.authApi.openExternal(url);
-  startPaymentPolling();
-});
+async function tryRedeemEarlyKey() {
+  var input = document.getElementById('inputEarlyKey');
+  var btn   = document.getElementById('btnConfirmKey');
+  var code  = input.value.trim();
+  if (!code || !currentUserId) return;
 
-document.getElementById('btnAlreadyPaid').addEventListener('click', async function() {
-  var btn = this;
-  btn.textContent = 'Verificando...'; btn.disabled = true;
-  var access = await window.authApi.checkAccess();
-  if (access.hasAccess) {
-    window.authApi.notifySuccess(access);
-  } else {
-    btn.textContent = '✅ Já assinei — verificar acesso'; btn.disabled = false;
-    showMsg('msgPromoCode', 'Pagamento ainda não confirmado. Aguarde e tente novamente.', 'error');
-  }
-});
-
-// ── Promo code ─────────────────────────────────────────────────────────────
-
-document.getElementById('btnRedeemCode').addEventListener('click', async function() {
-  var code = document.getElementById('inputPromoCode').value.trim();
-  clearMsg('msgPromoCode');
-  if (!code)           { showMsg('msgPromoCode', 'Digite um código.'); return; }
-  if (!currentUserId)  { showMsg('msgPromoCode', 'Faça login primeiro.'); return; }
-
-  var btn = this;
-  btn.disabled = true; btn.textContent = 'Verificando...';
+  input.disabled = true;
+  btn.disabled = true;
+  clearMsg('msgEarlyKey');
 
   var res = await window.authApi.redeemCode(currentUserId, code);
   if (res.success) {
-    showMsg('msgPromoCode', '✅ Código ativado! Aguarde...', 'success');
+    document.getElementById('earlyEntryBody').style.display = 'none';
+    document.getElementById('earlySuccessBody').style.display = '';
     setTimeout(async function() {
       var access = await window.authApi.checkAccess();
-      handleAccess(access);
-    }, 1000);
+      window.authApi.notifySuccess(access);
+    }, 1800);
   } else {
-    showMsg('msgPromoCode', res.error || 'Código inválido.');
-    btn.disabled = false; btn.textContent = 'Ativar';
+    input.disabled = false;
+    btn.disabled = false;
+    showMsg('msgEarlyKey', res.error || 'Chave inválida.');
   }
+}
+
+document.getElementById('inputEarlyKey').addEventListener('input', function() {
+  clearMsg('msgEarlyKey');
+  var btn = document.getElementById('btnConfirmKey');
+  var hasValue = this.value.trim().length > 0;
+  btn.disabled = !hasValue;
+  btn.classList.toggle('enabled', hasValue);
 });
 
-// ── Logout (expired screen) ────────────────────────────────────────────────
-
-document.getElementById('btnLogoutExpired').addEventListener('click', async function() {
-  await window.authApi.logout();
-  showScreen('screenLogin');
-  document.getElementById('inputEmail').value = '';
-  document.getElementById('inputPassword').value = '';
+document.getElementById('inputEarlyKey').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && this.value.trim()) tryRedeemEarlyKey();
 });
+
+document.getElementById('btnConfirmKey').addEventListener('click', tryRedeemEarlyKey);
 
 // ── Close button ───────────────────────────────────────────────────────────
 
