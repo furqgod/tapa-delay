@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld('api', {
     stopPlatform: (platform) => ipcRenderer.invoke('stop-platform', platform),
     startPlatform: (platform) => ipcRenderer.invoke('start-platform', platform),
 
+    // Cofre de segredos (stream keys cifradas no processo main)
+    secureSet: (key, value) => ipcRenderer.invoke('secure:set', key, value),
+    secureGet: (key)        => ipcRenderer.invoke('secure:get', key),
+
     // Config
     setPlatformKey: (platform, key) => ipcRenderer.invoke('set-platform-key', {platform, key}),
     setPlatformEnabled: (platform, enabled) => ipcRenderer.invoke('set-platform-enabled', {platform, enabled}),

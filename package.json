@@ -1,6 +1,6 @@
 {
   "name": "tapa-delay",
-  "version": "3.1.0-beta",
+  "version": "3.1.1-beta",
   "description": "Tapa Delay — delay dinâmico para streams",
   "productName": "Tapa Delay",
   "main": "main.js",
@@ -33,6 +33,7 @@
       "shortcutName": "Tapa Delay",
       "installerHeaderIcon": "assets/icon.ico",
       "uninstallDisplayName": "Tapa Delay ${version}",
+      "artifactName": "Tapa-Delay-Setup.${ext}",
       "include": "installer.nsh"
     },
     "extraResources": [
@@ -53,6 +54,8 @@
       "main.js",
       "preload.js",
       "server.js",
+      "overlay-server.js",
+      "overlay.html",
       "auth.js",
       "login.html",
       "login-preload.js",

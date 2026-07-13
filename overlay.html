@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Tapa Delay — Overlay</title>
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+    }
+
+    #notice {
+        position: fixed;
+        left: 50%;
+        bottom: 48px;
+        transform: translate(-50%, 20px);
+        opacity: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: rgba(26, 26, 28, 0.92);
+        border: 1px solid rgba(91, 124, 255, 0.35);
+        border-radius: 10px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        color: #f3f3f4;
+        font-weight: 700;
+        font-size: 14px;
+        white-space: nowrap;
+        transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+
+    #notice.visible {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+
+    #notice .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #5b7cff;
+        box-shadow: 0 0 8px rgba(91, 124, 255, 0.7);
+        flex: 0 0 auto;
+        animation: pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.3); opacity: 0.6; }
+    }
+</style>
+</head>
+<body>
+    <div id="notice">
+        <span class="dot"></span>
+        <span>Delay ativado</span>
+    </div>
+
+    <script>
+        const notice = document.getElementById('notice');
+        const VISIBLE_MS = 7000;
+        let timer = null;
+
+        function playDelayActivated() {
+            if (timer) { clearTimeout(timer); timer = null; }
+            notice.classList.add('visible');
+            timer = setTimeout(() => notice.classList.remove('visible'), VISIBLE_MS);
+        }
+
+        function connect() {
+            const es = new EventSource('/overlay/events');
+            es.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'delayActivated') playDelayActivated();
+                } catch {}
+            };
+            es.onerror = () => {
+                es.close();
+                setTimeout(connect, 2000); // reconecta se o app fechar/reabrir
+            };
+        }
+        connect();
+    </script>
+</body>
+</html>

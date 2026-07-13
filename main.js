@@ -1,19 +1,58 @@
 // ===== Tapa Delay — Electron Main Process =====
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, safeStorage } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 const { StreamDelayServer } = require('./server');
+const { OverlayServer } = require('./overlay-server');
 const { signUp, signIn, signOut, checkAccess, redeemCode } = require('./auth');
+
+// ─── Cofre de segredos (safeStorage) ─────────────────────────────────────────
+// Stream keys davam pra transmitir na conta do usuário e ficavam em texto puro no
+// localStorage (lido por qualquer malware/pessoa com acesso ao PC). Aqui elas são
+// cifradas com a keychain do SO (safeStorage) e gravadas num arquivo separado. O
+// renderer nunca persiste o segredo em claro — só um flag "KeyPresent" pro UI.
+function securePath() { return path.join(app.getPath('userData'), 'secure-keys.json'); }
+function readSecureStore() {
+    try { return JSON.parse(fs.readFileSync(securePath(), 'utf8')); } catch { return {}; }
+}
+function writeSecureStore(obj) {
+    try { fs.writeFileSync(securePath(), JSON.stringify(obj), 'utf8'); } catch {}
+}
+ipcMain.handle('secure:set', (_, key, value) => {
+    if (typeof key !== 'string') return { success: false };
+    const store = readSecureStore();
+    const val = String(value ?? '');
+    if (!val) { delete store[key]; writeSecureStore(store); return { success: true }; }
+    // 'enc:' = cifrado pela keychain; 'plain:' = fallback (SO sem keychain disponível,
+    // raro em Windows/macOS) — ainda melhor que localStorage, mas marcado como tal.
+    store[key] = safeStorage.isEncryptionAvailable()
+        ? 'enc:' + safeStorage.encryptString(val).toString('base64')
+        : 'plain:' + val;
+    writeSecureStore(store);
+    return { success: true };
+});
+ipcMain.handle('secure:get', (_, key) => {
+    if (typeof key !== 'string') return null;
+    const v = readSecureStore()[key];
+    if (typeof v !== 'string') return null;
+    if (v.startsWith('plain:')) return v.slice(6);
+    if (v.startsWith('enc:')) {
+        try { return safeStorage.decryptString(Buffer.from(v.slice(4), 'base64')); } catch { return null; }
+    }
+    return null;
+});
 
 // ─── Auto-Update ─────────────────────────────────────────────────────────────
 autoUpdater.allowPrerelease      = true;
 autoUpdater.autoDownload         = false; // usuário decide quando baixar
 autoUpdater.autoInstallOnAppQuit = false; // só instala quando clicar no botão
 
-let mainWindow  = null;
-let loginWindow = null;
-let tray        = null;
-let server      = null;
+let mainWindow    = null;
+let loginWindow   = null;
+let tray          = null;
+let server        = null;
+let overlayServer = null;
 
 // Sem isso, qualquer erro não tratado no processo principal (durante uma live de
 // horas) fecha o app inteiro em silêncio e derruba as 3 plataformas juntas. Loga
@@ -48,6 +87,9 @@ if (!gotTheLock) {
         server.start();
         server.setLogPath(path.join(app.getPath('userData'), 'tapa-delay.log'));
         server.setStreamingBlocked(true); // bloqueado até auth ser confirmado
+
+        overlayServer = new OverlayServer();
+        overlayServer.start(3000);
 
         const access = await checkAccess();
         const isLoggedIn = access.reason !== 'not_logged_in' && access.reason !== 'error';
@@ -97,6 +139,7 @@ function attachServerEvents() {
         if (mainWindow && !mainWindow.isDestroyed())
             mainWindow.webContents.send('stats-update', data);
     });
+    server.on('delayActivated', () => overlayServer?.broadcastDelayActivated());
 }
 
 function startApp(accessInfo) {
@@ -185,12 +228,26 @@ function createTray() {
 
 // ─── IPC — Auth ──────────────────────────────────────────────────────────────
 
+// SEGURANÇA: shell.openExternal abre QUALQUER esquema de URL (file://, smb://,
+// protocolos customizados perigosos). Se o renderer for comprometido (XSS), isso
+// vira um vetor. Só deixamos passar http/https.
+function safeOpenExternal(url) {
+    try {
+        const u = new URL(url);
+        if (u.protocol === 'http:' || u.protocol === 'https:') {
+            shell.openExternal(url);
+            return { success: true };
+        }
+    } catch {}
+    return { success: false };
+}
+
 ipcMain.handle('auth:login',        async (_, { email, password }) => signIn(email, password));
 ipcMain.handle('auth:signup',       async (_, { email, password, name }) => signUp(email, password, name));
 ipcMain.handle('auth:logout',       async () => { await signOut(); return { success: true }; });
 ipcMain.handle('auth:check-access',  async () => checkAccess());
 ipcMain.handle('auth:redeem-code',   async (_, { userId, code }) => redeemCode(userId, code));
-ipcMain.handle('auth:open-external',async (_, url) => { await shell.openExternal(url); return { success: true }; });
+ipcMain.handle('auth:open-external',async (_, url) => safeOpenExternal(url));
 
 // Login bem-sucedido: fecha login, abre app principal
 ipcMain.on('auth:login-success', (_, accessInfo) => {
@@ -222,7 +279,7 @@ ipcMain.handle('app:logout', async () => {
 
 // Info de acesso (trial) para o renderer do app principal
 ipcMain.handle('app:get-access-info',  async () => checkAccess());
-ipcMain.handle('app:open-external',   async (_, url) => { await shell.openExternal(url); return { success: true }; });
+ipcMain.handle('app:open-external',   async (_, url) => safeOpenExternal(url));
 ipcMain.handle('app:open-log',        async () => { await shell.openPath(path.join(app.getPath('userData'), 'tapa-delay.log')); return { success: true }; });
 ipcMain.handle('app:version',         () => app.getVersion());
 

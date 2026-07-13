@@ -16,10 +16,17 @@ const YOUTUBE_SERVER = 'rtmp://a.rtmp.youtube.com/live2/';
 const KICK_SERVER    = 'rtmps://fa723fc1b171.global-contribute.live-video.net/app/';
 const MAX_BUFFER_MS  = 310000;
 
+// SEGURANÇA: whitelist de plataformas. `platform` chega do renderer via IPC — sem
+// esta checagem, `this.platforms['__proto__']` resolve pra Object.prototype (truthy)
+// e a atribuição seguinte polui o protótipo global (prototype pollution). Usada em
+// todos os métodos que recebem `platform` de fora.
+const VALID_PLATFORMS = new Set(['twitch', 'youtube', 'kick']);
+const isValidPlatform = (p) => typeof p === 'string' && VALID_PLATFORMS.has(p);
+
 // Subscriber virtual — recebe FLV do NMS sem processo FFmpeg reader.
 class VirtualSubscriber {
     constructor(onData) {
-        this.id       = Date.now().toString(36) + Math.random().toString(36).slice(2);
+        this.id       = require('crypto').randomUUID();
         this.protocol = 'flv';
         this.ip       = '';
         this._onData  = onData;
@@ -191,7 +198,12 @@ class StreamDelayServer extends EventEmitter {
     }
 
     start() {
-        const config = { rtmp: { port: 1935, chunk_size: 60000, gop_cache: true, ping: 30, ping_timeout: 60 } };
+        // SEGURANÇA: bind em 127.0.0.1 (não 0.0.0.0). Sem isto o NMS escuta em TODAS
+        // as interfaces e qualquer dispositivo na mesma rede pode publicar em
+        // rtmp://<ip>:1935/live e sequestrar a transmissão (o conteúdo dele sai nos
+        // canais do streamer, com as chaves dele). Como o OBS local publica sempre em
+        // 127.0.0.1, restringir a loopback fecha o vetor remoto sem quebrar nada.
+        const config = { bind: '127.0.0.1', rtmp: { port: 1935, chunk_size: 60000, gop_cache: true, ping: 30, ping_timeout: 60 } };
         this.nms = new NodeMediaServer(config);
         this.nms.run();
 
@@ -228,27 +240,31 @@ class StreamDelayServer extends EventEmitter {
     }
 
     setPlatformKey(platform, key) {
-        if (this.platforms[platform]) this.platforms[platform].key = key;
+        if (!isValidPlatform(platform)) return { success: false };
+        this.platforms[platform].key = String(key ?? '');
         return { success: true };
     }
     setPlatformServer(platform, serverKey) {
-        if (this.platforms[platform]) {
-            const url = platform === 'twitch' ? TWITCH_SERVERS[serverKey] : null;
-            if (url) this.platforms[platform].server = url;
-        }
+        if (!isValidPlatform(platform)) return { success: false };
+        // TWITCH_SERVERS é objeto literal — protege contra serverKey tipo '__proto__'
+        const url = platform === 'twitch' && Object.prototype.hasOwnProperty.call(TWITCH_SERVERS, serverKey)
+            ? TWITCH_SERVERS[serverKey] : null;
+        if (url) this.platforms[platform].server = url;
         return { success: true };
     }
     setPlatformEnabled(platform, enabled) {
-        if (this.platforms[platform]) this.platforms[platform].enabled = enabled;
+        if (!isValidPlatform(platform)) return { success: false };
+        this.platforms[platform].enabled = !!enabled;
         return { success: true };
     }
     setPlatformStableMode(platform, enabled) {
-        if (this.platforms[platform]) this.platforms[platform].stableMode = !!enabled;
+        if (!isValidPlatform(platform)) return { success: false };
+        this.platforms[platform].stableMode = !!enabled;
         return { success: true };
     }
 
     stopPlatform(platform) {
-        if (!this.platforms[platform]) return { success: false };
+        if (!isValidPlatform(platform)) return { success: false };
         this.platforms[platform].manuallyStopped = true;
         this.platforms[platform].persistentReconnect = false;
         this._unsubscribePlatform(platform);
@@ -268,7 +284,7 @@ class StreamDelayServer extends EventEmitter {
     }
 
     startPlatform(platform) {
-        if (!this.platforms[platform]) return { success: false };
+        if (!isValidPlatform(platform)) return { success: false };
         if (!this.connected) {
             this.emit('status', { ...this.getStatus(), writerError: 'OBS não conectado — inicie a transmissão no OBS primeiro' });
             return { success: false, error: 'Stream não ativa' };
@@ -328,6 +344,10 @@ class StreamDelayServer extends EventEmitter {
         this.delay = Math.max(0, Math.min(300, parsed));
         console.log(`[StreamDelay] Delay: ${oldDelay}s → ${this.delay}s`);
 
+        if (oldDelay === 0 && this.delay > 0) {
+            this.emit('delayActivated');
+        }
+
         const hasWriters = Object.keys(this.writerProcesses).length > 0;
         if (!this.connected || !hasWriters) return { delay: this.delay, success: true };
 
@@ -365,9 +385,12 @@ class StreamDelayServer extends EventEmitter {
     setMode(mode) { this.mode = mode; return { mode: this.mode, success: true }; }
 
     _findFFmpeg() {
-        // DIAGNÓSTICO TEMPORÁRIO: permite apontar pra um FFmpeg específico via variável
-        // de ambiente, pra testar versões diferentes sem mexer no fallback padrão.
-        if (process.env.FFMPEG_PATH && require('fs').existsSync(process.env.FFMPEG_PATH)) {
+        // Override por variável de ambiente APENAS em desenvolvimento (testar versões
+        // diferentes de FFmpeg). Num build empacotado isto seria um vetor de execução
+        // de binário arbitrário (FFMPEG_PATH=C:\malware.exe), então é ignorado fora do
+        // modo dev. `app.isPackaged` é false só quando rodando via `electron .`.
+        const isDev = !require('electron').app?.isPackaged;
+        if (isDev && process.env.FFMPEG_PATH && require('fs').existsSync(process.env.FFMPEG_PATH)) {
             return process.env.FFMPEG_PATH;
         }
         try {

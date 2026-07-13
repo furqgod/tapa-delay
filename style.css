@@ -14,6 +14,7 @@
     --green: #62d889;
     --success: #62d889;
     --red: #ee3428;
+    --danger: #ef4444;
     --shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
     --radius: 18px;
     --mono: 'JetBrains Mono', 'Courier New', monospace;
@@ -85,19 +86,30 @@ button {
 }
 
 /* Selo "Acesso Antecipado" — absolute pra não interferir na centralização
-   do .nav, ancorado embaixo de onde a logo fica na title-bar acima. */
+   do .nav, colado no canto esquerdo/inferior do cabeçalho (fim do
+   .nav-bar). Caixa com tom de cinza mais escuro que o cabeçalho. */
 .early-access-tag {
     position: absolute;
-    left: 16px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 11px;
+    left: 0;
+    bottom: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    background: #19191b;
+    border-radius: 4px;
+    font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.4px;
     text-transform: uppercase;
     white-space: nowrap;
-    color: #5a5a62;
+    color: #6b6b74;
     pointer-events: none;
+}
+
+#appVersion {
+    font-weight: 600;
+    color: #55555c;
 }
 
 .nav,
@@ -463,7 +475,7 @@ label,
     will-change: opacity;
 }
 
-.ripple-cell:hover {
+.ripple-cell.hovered {
     opacity: 1;
     background: rgba(91, 124, 255, 0.14);
 }
@@ -659,13 +671,34 @@ label,
     padding-bottom: 8px;
 }
 
-.presets-section h2 {
+.presets-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 16px;
+}
+
+.presets-section h2 {
     color: #a6a6ad;
     font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.4px;
     text-transform: uppercase;
+}
+
+.presets-edit-toggle {
+    background: none;
+    border: none;
+    color: #83838a;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 4px 2px;
+    transition: color 0.15s ease;
+}
+
+.presets-edit-toggle:hover {
+    color: #c8c8cf;
 }
 
 .controls-grid {
@@ -674,35 +707,63 @@ label,
     gap: 12px;
 }
 
+/* O fundo/borda/raio ficam no ::before (não no botão) porque o Chromium exclui
+   os cantos arredondados da área clicável de um elemento com border-radius —
+   isso deixava os 4 cantos de cada preset "mortos" ao clique. O botão em si
+   fica retangular (100% clicável) e o ::before só cuida da aparência. */
 .btn-delay {
     position: relative;
+    z-index: 0;
     height: 128px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    appearance: none;
+    background: none;
+    border: none;
+    border-radius: 0;
+    color: var(--text);
+}
+
+.btn-delay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
     background: #343437;
     border: 1px solid #404045;
     border-radius: 16px;
-    color: var(--text);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     transition: transform 0.3s ease, border 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    pointer-events: none;
+}
+
+.btn-delay.editing::before {
+    border-color: var(--blue);
+}
+
+.btn-delay.editing .btn-time,
+.btn-delay.editing small {
+    outline: none;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.4);
+    cursor: text;
 }
 
 /* Efeito uiverse.io/Samalander0/sweet-eel-98 adaptado: card encolhe levemente
    no hover, número cresce (sinaliza clicável), descrição encolhe um pouco mais */
-.btn-delay:hover {
+.btn-delay:hover::before {
     transform: scale(0.97);
     border-color: #5f5f66;
     background: #39393d;
 }
 
-.btn-delay:active {
+.btn-delay:active::before {
     transform: scale(0.93);
 }
 
-.btn-delay.active {
+.btn-delay.active::before {
     background: linear-gradient(180deg, #46464b 0%, #3b3b3f 100%);
     border-color: #777780;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), var(--shadow);
@@ -1028,6 +1089,17 @@ label,
     font-weight: 800;
 }
 
+.form-group-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.form-group-label-row label {
+    margin-bottom: 0;
+}
+
 .input-text {
     width: 100%;
     height: 44px;
@@ -1213,6 +1285,13 @@ select.input-text option {
     padding: 24px;
 }
 
+.rtmp-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
 .rtmp-card .card-title {
     margin-bottom: 4px;
 }
@@ -1220,6 +1299,179 @@ select.input-text option {
 .rtmp-card .form-group {
     margin-left: 54px;
     margin-top: 22px;
+}
+
+.btn-guide {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding: 7px 14px;
+    background: rgba(91, 124, 255, 0.14);
+    border: 1px solid rgba(91, 124, 255, 0.3);
+    border-radius: 8px;
+    color: #a9bcff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.btn-guide svg {
+    width: 15px;
+    height: 15px;
+}
+
+.btn-guide:hover {
+    background: rgba(91, 124, 255, 0.24);
+}
+
+.input-copy-wrap {
+    position: relative;
+}
+
+.input-copy-wrap .input-text {
+    padding-right: 48px;
+}
+
+.btn-copy-inline {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    color: #8d8d95;
+    background: transparent;
+    border: 0;
+    transform: translateY(-50%);
+}
+
+.btn-copy-inline svg {
+    width: 17px;
+    height: 17px;
+}
+
+.btn-copy-inline:hover {
+    color: white;
+}
+
+/* ---- Modal do guia do OBS ---- */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 10, 12, 0.6);
+    backdrop-filter: blur(2px);
+}
+
+.modal-card {
+    position: relative;
+    width: min(480px, calc(100% - 48px));
+    max-height: calc(100% - 48px);
+    overflow-y: auto;
+    padding: 28px;
+    background: #2a2a2e;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.modal-card h2 {
+    margin-bottom: 18px;
+    font-size: 17px;
+    font-weight: 800;
+}
+
+.modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    color: #8d8d95;
+    background: rgba(255, 255, 255, 0.06);
+    border: 0;
+    border-radius: 50%;
+}
+
+.modal-close svg {
+    width: 15px;
+    height: 15px;
+}
+
+.modal-close:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.guide-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    counter-reset: none;
+    list-style: none;
+    font-size: 13px;
+    color: #c8c8d0;
+}
+
+.guide-steps li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.guide-steps strong {
+    color: #a9bcff;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.guide-steps em {
+    color: white;
+    font-style: normal;
+    font-weight: 700;
+}
+
+.guide-image {
+    display: block;
+    width: 100%;
+    margin-top: 18px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    cursor: zoom-in;
+    transition: opacity 0.15s ease;
+}
+
+.guide-image:hover {
+    opacity: 0.85;
+}
+
+/* Lightbox — amplia o print do guia ao clicar nele */
+.image-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: rgba(0, 0, 0, 0.82);
+    cursor: zoom-out;
+}
+
+.image-lightbox img {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: var(--shadow);
 }
 
 
@@ -1377,5 +1629,241 @@ input:checked + .slider::before {
     .presets-section {
         display: none;
     }
+}
+
+/* ============================================================
+   TEMA CLARO — ativado via classe .light-theme no <body>
+   (toggle "Dark Mode" em Configurações). As variáveis do :root
+   cobrem boa parte sozinhas; o resto (cores fixas em hex/rgba
+   pensadas pro fundo escuro) é sobrescrito aqui.
+   ============================================================ */
+body.light-theme {
+    --bg: #f1f1f4;
+    --panel: #ffffff;
+    --panel-soft: #f6f6f8;
+    --panel-dark: #ececf0;
+    --line: #dcdce2;
+    --line-strong: #c4c4cc;
+    --text: #1c1c20;
+    --muted: #6b6b74;
+    --muted-2: #86868f;
+    --shadow: 0 20px 50px rgba(0, 0, 0, 0.10);
+}
+
+body.light-theme .title-bar {
+    background: linear-gradient(180deg, #ffffff 0%, #f0f0f3 100%);
+}
+
+body.light-theme .nav-bar {
+    background: #e9e9ee;
+}
+
+body.light-theme .early-access-tag {
+    background: #dcdce2;
+    color: #86868f;
+}
+
+body.light-theme #appVersion {
+    color: #9a9aa2;
+}
+
+body.light-theme .nav-item {
+    color: #6b6b74;
+}
+
+body.light-theme .nav-item:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+body.light-theme .nav-item.active {
+    background: #ffffff;
+    border-color: #c4c4cc;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+body.light-theme .win-btn {
+    color: #6b6b74;
+}
+
+body.light-theme .win-btn:hover {
+    color: #1c1c20;
+    background: rgba(0, 0, 0, 0.06);
+}
+
+body.light-theme .connection {
+    color: #6b6b74;
+}
+
+body.light-theme .status-dot {
+    background: #b0b0b8;
+}
+
+body.light-theme #currentDelayDisplay,
+body.light-theme #currentDelayDisplay.active-color {
+    color: #17171a;
+    caret-color: #17171a;
+}
+
+body.light-theme #delayUnit {
+    color: #86868f;
+}
+
+body.light-theme .eyebrow {
+    color: #6b6b74;
+}
+
+body.light-theme .page::-webkit-scrollbar-thumb {
+    background: #c1c1c8;
+}
+
+body.light-theme .round-action {
+    background: linear-gradient(180deg, #4a4a52 0%, #34343a 100%);
+    border-color: #55555e;
+}
+
+body.light-theme .round-action:hover {
+    border-color: #6b6b74;
+    background: #3d3d44;
+}
+
+body.light-theme .presets-section h2 {
+    color: #6b6b74;
+}
+
+body.light-theme .presets-edit-toggle {
+    color: #86868f;
+}
+
+body.light-theme .presets-edit-toggle:hover {
+    color: #1c1c20;
+}
+
+body.light-theme .btn-delay::before {
+    background: #ffffff;
+    border-color: #dcdce2;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+body.light-theme .btn-delay:hover::before {
+    border-color: #c4c4cc;
+    background: #f7f7f9;
+}
+
+body.light-theme .btn-delay.active::before {
+    background: linear-gradient(180deg, #ffffff 0%, #f0f0f3 100%);
+    border-color: #b5b5bd;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05), 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+body.light-theme .btn-delay small {
+    color: #86868f;
+}
+
+body.light-theme .pill {
+    color: #6b6b74;
+    background: #ffffff;
+}
+
+body.light-theme .pill strong {
+    color: #1c1c20;
+}
+
+body.light-theme .platform-title strong,
+body.light-theme .setting-left strong {
+    color: #1c1c20;
+}
+
+body.light-theme .form-group label {
+    color: #6b6b74;
+}
+
+body.light-theme .writer-label {
+    color: #6b6b74;
+}
+
+body.light-theme .input-text {
+    color: #1c1c20;
+}
+
+body.light-theme select.input-text option {
+    background: #ffffff;
+    color: #1c1c20;
+}
+
+body.light-theme .btn-eye,
+body.light-theme .btn-copy-inline {
+    color: #86868f;
+}
+
+body.light-theme .btn-eye:hover,
+body.light-theme .btn-copy-inline:hover {
+    color: #1c1c20;
+}
+
+body.light-theme .pro-overlay {
+    background: rgba(255, 255, 255, 0.90);
+}
+
+body.light-theme .pro-overlay.visible:hover {
+    background: rgba(255, 255, 255, 0.95);
+}
+
+body.light-theme .modal-backdrop {
+    background: rgba(24, 24, 28, 0.4);
+}
+
+body.light-theme .modal-card {
+    background: #ffffff;
+}
+
+body.light-theme .modal-close {
+    color: #86868f;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme .modal-close:hover {
+    color: #1c1c20;
+    background: rgba(0, 0, 0, 0.09);
+}
+
+body.light-theme .guide-steps {
+    color: #4a4a52;
+}
+
+body.light-theme .guide-steps strong {
+    color: #4f5fd6;
+}
+
+body.light-theme .guide-steps em {
+    color: #1c1c20;
+}
+
+body.light-theme .guide-image {
+    border-color: var(--line);
+}
+
+body.light-theme .about-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f2f2f6 100%);
+}
+
+body.light-theme .about-card p {
+    color: #6b6b74;
+}
+
+body.light-theme .slider {
+    background: #c4c4cc;
+}
+
+body.light-theme .update-banner,
+body.light-theme .trial-banner {
+    color: #4338ca;
+}
+
+body.light-theme .update-settings-info strong {
+    color: #312e81;
+}
+
+body.light-theme .update-settings-info span {
+    color: #4338ca;
 }
 

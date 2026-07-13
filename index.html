@@ -40,7 +40,7 @@
                 </div>
             </div>
             <div class="nav-bar">
-                <span class="early-access-tag">Acesso Antecipado</span>
+                <span class="early-access-tag">Acesso Antecipado <span id="appVersion"></span></span>
                 <nav class="nav">
                     <button class="nav-item active" data-page="delay">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>
@@ -89,35 +89,38 @@
                 </div>
 
                 <section class="presets-section">
-                    <h2>Quick Presets</h2>
+                    <div class="presets-header">
+                        <h2>Presets</h2>
+                        <button class="presets-edit-toggle" id="presetsEditToggle" type="button">Editar</button>
+                    </div>
                     <div class="controls-grid">
                         <button class="btn-delay active" id="btnLive" data-delay="0">
                             <span class="checkmark">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
                             </span>
                             <span class="btn-time live">0</span>
-                            <small>No delay</small>
+                            <small>Live</small>
                         </button>
                         <button class="btn-delay" data-delay="20">
                             <span class="checkmark">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
                             </span>
                             <span class="btn-time short">20</span>
-                            <small>20 seconds</small>
+                            <small>Segundos</small>
                         </button>
                         <button class="btn-delay" data-delay="33">
                             <span class="checkmark">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
                             </span>
                             <span class="btn-time medium">33</span>
-                            <small>33 seconds</small>
+                            <small>Segundos</small>
                         </button>
                         <button class="btn-delay" data-delay="60">
                             <span class="checkmark">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
                             </span>
                             <span class="btn-time long">60</span>
-                            <small>1 minute</small>
+                            <small>Segundos</small>
                         </button>
                     </div>
                 </section>
@@ -156,7 +159,13 @@
                             </label>
                         </div>
                         <div class="form-group">
-                            <label>Stream Key</label>
+                            <div class="form-group-label-row">
+                                <label>Stream Key</label>
+                                <button class="btn-guide" id="btnTwitchGuide" type="button">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                    Guia
+                                </button>
+                            </div>
                             <div class="input-password-wrap">
                                 <input type="password" id="twitchKey" placeholder="live_123456789_abcdefgh..." class="input-text">
                                 <button class="btn-eye" data-target="twitchKey" type="button" title="Mostrar/ocultar chave">
@@ -204,7 +213,13 @@
                             </label>
                         </div>
                         <div class="form-group">
-                            <label>Stream Key</label>
+                            <div class="form-group-label-row">
+                                <label>Stream Key</label>
+                                <button class="btn-guide" id="btnYoutubeGuide" type="button">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                    Guia
+                                </button>
+                            </div>
                             <div class="input-password-wrap">
                                 <input type="password" id="youtubeKey" placeholder="xxxx-xxxx-xxxx-xxxx-xxxx" class="input-text">
                                 <button class="btn-eye" data-target="youtubeKey" type="button" title="Mostrar/ocultar chave">
@@ -241,7 +256,13 @@
                             </label>
                         </div>
                         <div class="form-group">
-                            <label>Stream Key</label>
+                            <div class="form-group-label-row">
+                                <label>Stream Key</label>
+                                <button class="btn-guide" id="btnKickGuide" type="button">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                    Guia
+                                </button>
+                            </div>
                             <div class="input-password-wrap">
                                 <input type="password" id="kickKey" placeholder="sk_us-east-1_..." class="input-text">
                                 <button class="btn-eye" data-target="kickKey" type="button" title="Mostrar/ocultar chave">
@@ -318,29 +339,61 @@
                                 </div>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" checked>
+                                <input type="checkbox" id="darkModeToggle" checked>
                                 <span class="slider"></span>
                             </label>
                         </div>
                     </section>
 
                     <section class="settings-card rtmp-card">
-                        <div class="setting-left card-title">
-                            <span class="setting-icon globe">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20"/><path d="M12 2a15 15 0 0 0 0 20"/></svg>
-                            </span>
-                            <div>
-                                <strong>RTMP Server</strong>
-                                <span>Local streaming server configuration</span>
+                        <div class="rtmp-card-header">
+                            <div class="setting-left card-title">
+                                <span class="setting-icon globe">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20"/><path d="M12 2a15 15 0 0 0 0 20"/></svg>
+                                </span>
+                                <div>
+                                    <strong>RTMP Server</strong>
+                                    <span>Local streaming server configuration</span>
+                                </div>
                             </div>
+                            <button class="btn-guide" id="btnRtmpGuide" type="button">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                Guia
+                            </button>
                         </div>
                         <div class="form-group">
                             <label>Server URL</label>
-                            <input type="text" class="input-text" value="rtmp://127.0.0.1:1935/live" readonly>
+                            <div class="input-copy-wrap">
+                                <input type="text" class="input-text" id="rtmpServerUrl" value="rtmp://127.0.0.1:1935/live" readonly>
+                                <button class="btn-copy-inline" id="btnCopyRtmpUrl" type="button" title="Copiar URL">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                </button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label>Stream Key</label>
                             <input type="text" class="input-text" value="any_value" readonly>
+                        </div>
+                    </section>
+
+                    <section class="settings-card rtmp-card">
+                        <div class="setting-left card-title">
+                            <span class="setting-icon globe">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                            </span>
+                            <div>
+                                <strong>Overlay</strong>
+                                <span>Browser Source para o OBS</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Overlay URL (Browser Source)</label>
+                            <div class="input-copy-wrap">
+                                <input type="text" class="input-text" id="overlayUrl" value="http://localhost:3000/overlay" readonly>
+                                <button class="btn-copy-inline" id="btnCopyOverlayUrl" type="button" title="Copiar URL">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </section>
 
@@ -373,6 +426,67 @@
                 </div>
             </section>
         </main>
+
+        <div class="modal-backdrop" id="rtmpGuideModal" style="display:none">
+            <div class="modal-card">
+                <button class="modal-close" id="btnCloseRtmpGuide" type="button" title="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <h2>Como configurar no OBS</h2>
+                <ol class="guide-steps">
+                    <li><strong>Passo 1</strong> Altere o servidor para <em>Personalizado...</em></li>
+                    <li><strong>Passo 2</strong> Copie e cole o seu RTMP local no campo Destino / Servidor</li>
+                    <li><strong>Passo 3</strong> Use a imagem abaixo como referência visual de onde fica esse campo</li>
+                </ol>
+                <img src="assets/obs-guide-rtmp.png" alt="Configuração do servidor no OBS" class="guide-image" id="guideImage" title="Clique para ampliar" onerror="this.style.display='none'">
+            </div>
+        </div>
+
+        <div class="modal-backdrop" id="twitchGuideModal" style="display:none">
+            <div class="modal-card">
+                <button class="modal-close" type="button" title="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <h2>Chave de transmissão da Twitch</h2>
+                <ol class="guide-steps">
+                    <li><strong>Passo 1</strong> Copie sua chave de transmissão</li>
+                    <li><strong>Passo 2</strong> Cole na aba da plataforma</li>
+                </ol>
+                <img src="assets/obs-guide-twitch-key.png" alt="Onde copiar a chave de transmissão da Twitch" class="guide-image" title="Clique para ampliar" onerror="this.style.display='none'">
+            </div>
+        </div>
+
+        <div class="modal-backdrop" id="youtubeGuideModal" style="display:none">
+            <div class="modal-card">
+                <button class="modal-close" type="button" title="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <h2>Chave de transmissão do YouTube</h2>
+                <ol class="guide-steps">
+                    <li><strong>Passo 1</strong> Copie sua chave de transmissão</li>
+                    <li><strong>Passo 2</strong> Cole na aba da plataforma</li>
+                </ol>
+                <img src="assets/obs-guide-youtube-key.png" alt="Onde copiar a chave de transmissão do YouTube" class="guide-image" title="Clique para ampliar" onerror="this.style.display='none'">
+            </div>
+        </div>
+
+        <div class="modal-backdrop" id="kickGuideModal" style="display:none">
+            <div class="modal-card">
+                <button class="modal-close" type="button" title="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <h2>Chave de transmissão do Kick</h2>
+                <ol class="guide-steps">
+                    <li><strong>Passo 1</strong> Copie sua chave de transmissão</li>
+                    <li><strong>Passo 2</strong> Cole na aba da plataforma</li>
+                </ol>
+                <img src="assets/obs-guide-kick-key.png" alt="Onde copiar a chave de transmissão do Kick" class="guide-image" title="Clique para ampliar" onerror="this.style.display='none'">
+            </div>
+        </div>
+
+        <div class="image-lightbox" id="guideImageLightbox" style="display:none">
+            <img src="" alt="Configuração do servidor no OBS (ampliado)" id="guideImageLightboxImg">
+        </div>
     </div>
     <script src="app.js"></script>
 </body>

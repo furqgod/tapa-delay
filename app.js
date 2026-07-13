@@ -18,10 +18,9 @@ const els = {
     currentDelayDisplay: document.getElementById('currentDelayDisplay'),
     delayUnit: document.getElementById('delayUnit'),
     delayProgress: document.getElementById('delayProgress'),
-    btnLive: document.getElementById('btnLive'),
     btnResetDelay: document.getElementById('btnResetDelay'),
     btnPlayDelay: document.getElementById('btnPlayDelay'),
-    delayBtns: document.querySelectorAll('.btn-delay:not(#btnLive)'),
+    allPresetBtns: document.querySelectorAll('.btn-delay'),
     inBitrate: document.getElementById('inBitrate'),
     outBitrate: document.getElementById('outBitrate'),
     
@@ -36,8 +35,6 @@ const els = {
     btnSaveSetup: document.getElementById('btnSaveSetup'),
     
     // Overlay
-    overlayLink: document.getElementById('overlayLink'),
-    btnCopyLink: document.getElementById('btnCopyLink'),
 
     // Live controls
     twitchLiveBar: document.getElementById('twitchLiveBar'),
@@ -85,14 +82,136 @@ document.getElementById('btnMax')?.addEventListener('click', () => isElectron &&
 document.getElementById('btnClose')?.addEventListener('click', () => isElectron && window.api.close());
 
 // Delay Controls
-els.btnLive.addEventListener('click', () => setDelay(0));
 els.btnResetDelay?.addEventListener('click', () => setDelay(0));
 els.btnPlayDelay?.addEventListener('click', () => setDelay(state.delay));
 
-els.delayBtns.forEach(btn => {
+els.allPresetBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-        const delay = parseInt(btn.getAttribute('data-delay'));
-        setDelay(delay);
+        if (btn.classList.contains('editing')) return;
+        const delay = parseInt(btn.getAttribute('data-delay'), 10);
+        if (!isNaN(delay)) setDelay(delay);
+    });
+});
+
+// Presets editáveis — botão "Editar" no cabeçalho coloca todos os presets em edição de uma vez
+function selectElementText(el) {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+}
+
+function presetKey(idx, field) {
+    return `preset${idx}_${field}`;
+}
+
+function savePreset(idx, time, label) {
+    localStorage.setItem(uKey(presetKey(idx, 'time')), String(time));
+    localStorage.setItem(uKey(presetKey(idx, 'label')), label);
+}
+
+function loadPresets() {
+    els.allPresetBtns.forEach((btn, idx) => {
+        const timeEl = btn.querySelector('.btn-time');
+        const labelEl = btn.querySelector('small');
+        const lsGet = (field) => localStorage.getItem(uKey(presetKey(idx, field))) ?? localStorage.getItem(presetKey(idx, field));
+
+        const savedTime = lsGet('time');
+        const savedLabel = lsGet('label');
+        if (savedTime !== null && !isNaN(parseInt(savedTime, 10))) {
+            btn.setAttribute('data-delay', savedTime);
+            timeEl.textContent = savedTime;
+        }
+        if (savedLabel) {
+            labelEl.textContent = savedLabel;
+        }
+    });
+    updateUI();
+}
+
+const presetsEditToggle = document.getElementById('presetsEditToggle');
+let presetsEditing = false;
+let presetOriginals = [];
+
+function enterPresetsEdit() {
+    presetsEditing = true;
+    presetOriginals = [];
+    els.allPresetBtns.forEach((btn, idx) => {
+        const timeEl = btn.querySelector('.btn-time');
+        const labelEl = btn.querySelector('small');
+        presetOriginals[idx] = {
+            time: timeEl.textContent,
+            label: labelEl.textContent,
+            delay: btn.getAttribute('data-delay'),
+        };
+        btn.classList.add('editing');
+        timeEl.contentEditable = 'true';
+        labelEl.contentEditable = 'true';
+    });
+    if (presetsEditToggle) presetsEditToggle.textContent = 'Salvar';
+    const firstTime = els.allPresetBtns[0]?.querySelector('.btn-time');
+    if (firstTime) {
+        firstTime.focus();
+        selectElementText(firstTime);
+    }
+}
+
+function exitPresetsEdit(save) {
+    presetsEditing = false;
+    els.allPresetBtns.forEach((btn, idx) => {
+        const timeEl = btn.querySelector('.btn-time');
+        const labelEl = btn.querySelector('small');
+        btn.classList.remove('editing');
+        timeEl.contentEditable = 'false';
+        labelEl.contentEditable = 'false';
+
+        if (!save) {
+            timeEl.textContent = presetOriginals[idx].time;
+            labelEl.textContent = presetOriginals[idx].label;
+            btn.setAttribute('data-delay', presetOriginals[idx].delay);
+            return;
+        }
+
+        const val = parseInt(timeEl.textContent, 10);
+        const label = labelEl.textContent.trim();
+        if (!isNaN(val) && val >= 0 && val <= 300) {
+            btn.setAttribute('data-delay', String(val));
+            timeEl.textContent = String(val);
+        } else {
+            timeEl.textContent = presetOriginals[idx].time;
+        }
+        labelEl.textContent = label || PRESET_DEFAULT_LABELS[idx];
+        savePreset(idx, btn.getAttribute('data-delay'), labelEl.textContent);
+    });
+    if (presetsEditToggle) presetsEditToggle.textContent = 'Editar';
+    updateUI();
+}
+
+presetsEditToggle?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (presetsEditing) {
+        exitPresetsEdit(true);
+    } else {
+        enterPresetsEdit();
+    }
+});
+
+els.allPresetBtns.forEach((btn) => {
+    const timeEl = btn.querySelector('.btn-time');
+    const labelEl = btn.querySelector('small');
+
+    [timeEl, labelEl].forEach((el) => {
+        el.addEventListener('click', (e) => { if (presetsEditing) e.stopPropagation(); });
+        el.addEventListener('keydown', (e) => {
+            if (!presetsEditing) return;
+            if (e.key === 'Enter') { e.preventDefault(); exitPresetsEdit(true); }
+            if (e.key === 'Escape') { e.preventDefault(); exitPresetsEdit(false); }
+        });
+    });
+
+    timeEl.addEventListener('keypress', (e) => {
+        if (!/[0-9]/.test(e.key)) e.preventDefault();
     });
 });
 
@@ -184,10 +303,14 @@ async function saveSetup() {
     const twitchServer = document.getElementById('twitchServer')?.value || 'sa_east';
     const twitchStableMode = els.twitchStableMode ? els.twitchStableMode.checked : true;
 
-    // Save to local storage (por usuário)
-    localStorage.setItem(uKey('twitchKey'),      twitchKey);
-    localStorage.setItem(uKey('youtubeKey'),     youtubeKey);
-    localStorage.setItem(uKey('kickKey'),        kickKey);
+    // Stream keys → cofre cifrado (safeStorage) no processo main. NÃO ficam em texto
+    // puro no localStorage. Guardamos só um flag booleano de presença pro UI checar
+    // existência de forma síncrona (sem expor o segredo). Ver preload/main secure:*.
+    await saveSecureKey('twitch', twitchKey);
+    await saveSecureKey('youtube', youtubeKey);
+    await saveSecureKey('kick', kickKey);
+
+    // Flags não-secretas continuam no localStorage
     localStorage.setItem(uKey('twitchEnabled'),  twitchEnabled);
     localStorage.setItem(uKey('youtubeEnabled'), youtubeEnabled);
     localStorage.setItem(uKey('kickEnabled'),    kickEnabled);
@@ -220,16 +343,38 @@ async function saveSetup() {
 
 els.btnSaveSetup?.addEventListener('click', saveSetup);
 
-function loadSetup() {
+// Grava uma stream key no cofre cifrado + flag de presença; remove qualquer
+// resquício em texto puro que exista de versões antigas (com e sem prefixo userId).
+async function saveSecureKey(platform, key) {
+    if (!isElectron) return;
+    await window.api.secureSet(uKey(`${platform}Key`), key);
+    localStorage.setItem(uKey(`${platform}KeyPresent`), key ? 'true' : 'false');
+    localStorage.removeItem(uKey(`${platform}Key`)); // limpa plaintext legado (prefixado)
+    localStorage.removeItem(`${platform}Key`);       // e o sem prefixo
+}
+
+// Lê a key do cofre. Se não houver, migra automaticamente uma key legada em texto
+// puro do localStorage (versões < 3.1.1) pro cofre e apaga o plaintext.
+async function loadSecureKey(platform) {
+    if (!isElectron) return '';
+    let key = await window.api.secureGet(uKey(`${platform}Key`));
+    if (!key) {
+        const legacy = localStorage.getItem(uKey(`${platform}Key`)) ?? localStorage.getItem(`${platform}Key`);
+        if (legacy) { await saveSecureKey(platform, legacy); key = legacy; }
+    }
+    return key || '';
+}
+
+async function loadSetup() {
     // lsGet: lê key prefixada por userId; se não existir, cai para key sem prefixo
     // (compatibilidade com chaves salvas antes do sistema de userId)
     function lsGet(name) {
         return localStorage.getItem(uKey(name)) ?? localStorage.getItem(name);
     }
 
-    const twitchKey      = lsGet('twitchKey')      || '';
-    const youtubeKey     = lsGet('youtubeKey')     || '';
-    const kickKey        = lsGet('kickKey')        || '';
+    const twitchKey      = await loadSecureKey('twitch');
+    const youtubeKey     = await loadSecureKey('youtube');
+    const kickKey        = await loadSecureKey('kick');
     const twitchEnabled  = lsGet('twitchEnabled')  !== 'false';
     const youtubeEnabled = lsGet('youtubeEnabled') === 'true';
     const kickEnabled    = lsGet('kickEnabled')    === 'true';
@@ -285,7 +430,9 @@ function updateWriterControls(writers, connected) {
         const lsGetCtrl = (name) => localStorage.getItem(uKey(name)) ?? localStorage.getItem(name);
         const platformEnabled = lsGetCtrl(`${p.name}Enabled`) === 'true' ||
             (p.name === 'twitch' && lsGetCtrl('twitchEnabled') !== 'false');
-        const hasKey = !!(lsGetCtrl(`${p.name}Key`));
+        // Presença da key é síncrona via flag (o segredo em si vive no cofre cifrado).
+        // Fallback pro plaintext legado ainda não migrado (some após o 1º loadSetup).
+        const hasKey = lsGetCtrl(`${p.name}KeyPresent`) === 'true' || !!lsGetCtrl(`${p.name}Key`);
 
         // Só mostra a barra se a plataforma está habilitada, tem key e stream está ativa
         if (!connected || !platformEnabled || !hasKey) {
@@ -348,18 +495,91 @@ platformCtrlMap.forEach(p => {
     });
 });
 
-// Overlay Link
-els.btnCopyLink?.addEventListener('click', () => {
-    const link = 'http://localhost:3000/overlay';
-    navigator.clipboard.writeText(link);
-    
-    const btn = els.btnCopyLink;
-    const originalHTML = btn.innerHTML;
-    btn.innerHTML = '<span>Copiado!</span>';
-    
+// Copiar URL do RTMP local (card "RTMP Server" nas Configurações)
+const btnCopyRtmpUrl = document.getElementById('btnCopyRtmpUrl');
+btnCopyRtmpUrl?.addEventListener('click', () => {
+    const input = document.getElementById('rtmpServerUrl');
+    if (!input) return;
+    navigator.clipboard.writeText(input.value);
+
+    const originalHTML = btnCopyRtmpUrl.innerHTML;
+    btnCopyRtmpUrl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
     setTimeout(() => {
-        btn.innerHTML = originalHTML;
+        btnCopyRtmpUrl.innerHTML = originalHTML;
     }, 2000);
+});
+
+// Copiar URL do overlay (Browser Source do OBS)
+const btnCopyOverlayUrl = document.getElementById('btnCopyOverlayUrl');
+btnCopyOverlayUrl?.addEventListener('click', () => {
+    const input = document.getElementById('overlayUrl');
+    if (!input) return;
+    navigator.clipboard.writeText(input.value);
+
+    const originalHTML = btnCopyOverlayUrl.innerHTML;
+    btnCopyOverlayUrl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+    setTimeout(() => {
+        btnCopyOverlayUrl.innerHTML = originalHTML;
+    }, 2000);
+});
+
+// Guia "como configurar no OBS" — modal com o passo a passo
+const rtmpGuideModal = document.getElementById('rtmpGuideModal');
+document.getElementById('btnRtmpGuide')?.addEventListener('click', () => {
+    if (rtmpGuideModal) rtmpGuideModal.style.display = 'flex';
+});
+document.getElementById('btnCloseRtmpGuide')?.addEventListener('click', () => {
+    if (rtmpGuideModal) rtmpGuideModal.style.display = 'none';
+});
+
+// Guias das chaves de transmissão (Twitch/YouTube/Kick) — mesmo padrão do
+// guia do RTMP: um passo só ("copie sua chave") + imagem de referência.
+const platformGuides = [
+    { openBtn: 'btnTwitchGuide', modal: 'twitchGuideModal' },
+    { openBtn: 'btnYoutubeGuide', modal: 'youtubeGuideModal' },
+    { openBtn: 'btnKickGuide', modal: 'kickGuideModal' },
+];
+platformGuides.forEach(({ openBtn, modal }) => {
+    const modalEl = document.getElementById(modal);
+    document.getElementById(openBtn)?.addEventListener('click', () => {
+        if (modalEl) modalEl.style.display = 'flex';
+    });
+    modalEl?.querySelector('.modal-close')?.addEventListener('click', () => {
+        modalEl.style.display = 'none';
+    });
+});
+
+// Fecha qualquer guia ao clicar fora do card (no fundo escuro)
+document.querySelectorAll('.modal-backdrop').forEach(modalEl => {
+    modalEl.addEventListener('click', (e) => {
+        if (e.target === modalEl) modalEl.style.display = 'none';
+    });
+});
+
+// Lightbox — clica em qualquer imagem de guia pra ver ela em tamanho grande
+const guideImageLightbox = document.getElementById('guideImageLightbox');
+const guideImageLightboxImg = document.getElementById('guideImageLightboxImg');
+document.querySelectorAll('.guide-image').forEach(img => {
+    img.addEventListener('click', (e) => {
+        if (!guideImageLightbox || !guideImageLightboxImg) return;
+        guideImageLightboxImg.src = e.target.src;
+        guideImageLightboxImg.alt = e.target.alt;
+        guideImageLightbox.style.display = 'flex';
+    });
+});
+guideImageLightbox?.addEventListener('click', () => {
+    guideImageLightbox.style.display = 'none';
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (guideImageLightbox && guideImageLightbox.style.display !== 'none') {
+        guideImageLightbox.style.display = 'none';
+        return;
+    }
+    document.querySelectorAll('.modal-backdrop').forEach(modalEl => {
+        if (modalEl.style.display !== 'none') modalEl.style.display = 'none';
+    });
 });
 
 // Update UI based on state
@@ -386,9 +606,8 @@ function updateUI() {
     els.delayProgress.style.width = `${percentage}%`;
 
     // Buttons highlight
-    els.btnLive.classList.toggle('active', state.delay === 0);
-    els.delayBtns.forEach(btn => {
-        const d = parseInt(btn.getAttribute('data-delay'));
+    els.allPresetBtns.forEach(btn => {
+        const d = parseInt(btn.getAttribute('data-delay'), 10);
         btn.classList.toggle('active', state.delay === d);
     });
 }
@@ -401,6 +620,12 @@ let _authEmail  = null;
 function uKey(name) {
     return _authUserId ? `${_authUserId}_${name}` : name;
 }
+
+// Textos padrão (do HTML, antes de qualquer override salvo) — usados pra
+// resetar o nome quando o usuário apaga o campo e salva vazio.
+const PRESET_DEFAULT_LABELS = Array.from(els.allPresetBtns).map(btn => btn.querySelector('small').textContent);
+
+loadPresets();
 
 function openSubscribePage() {
     if (!isElectron) return;
@@ -425,7 +650,7 @@ function applyAuthInfo(info) {
     const userChanged = info.userId && info.userId !== _authUserId;
     if (info.userId) _authUserId = info.userId;
     if (info.email)  _authEmail  = info.email;
-    if (userChanged) loadSetup(); // recarrega keys da conta correta
+    if (userChanged) { loadSetup(); loadPresets(); } // recarrega keys da conta correta
 
     // Mostra nome se existir, senão o email
     if (emailEl)  emailEl.textContent  = info.name || info.email || '—';
@@ -455,6 +680,21 @@ document.getElementById('btnOpenLog')?.addEventListener('click', () => {
 document.getElementById('btnLogout')?.addEventListener('click', async () => {
     if (!isElectron) return;
     await window.api.logout();
+});
+
+// Tema claro/escuro — preferência de aparência, não é por conta (mesmo
+// dispositivo pode ter usuários diferentes com o mesmo gosto de tema)
+const darkModeToggle = document.getElementById('darkModeToggle');
+function applyTheme(isDark) {
+    document.body.classList.toggle('light-theme', !isDark);
+}
+const savedIsDark = localStorage.getItem('darkMode');
+const isDark = savedIsDark !== null ? savedIsDark === 'true' : true;
+if (darkModeToggle) darkModeToggle.checked = isDark;
+applyTheme(isDark);
+darkModeToggle?.addEventListener('change', () => {
+    localStorage.setItem('darkMode', String(darkModeToggle.checked));
+    applyTheme(darkModeToggle.checked);
 });
 
 // Initialization & IPC Events
@@ -634,25 +874,46 @@ function initRipple(container, cellSize) {
         cells.forEach(cell => cell.classList.add('rippling'));
     }
 
+    // Só reage em cima de fundo vazio — cabeçalho, presets, botões, qualquer
+    // card (Streaming/Settings/About/Overlay/Update) e o número principal não
+    // devem animar/destacar o background. Pega toda classe "*-card" de uma
+    // vez em vez de listar uma por uma.
+    const RIPPLE_EXCLUDE = 'button, a, input, select, label, #currentDelayDisplay, ' +
+        '.app-header-split, .update-banner, .modal-backdrop, .image-lightbox, [class*="-card"]';
+
     // Clique em QUALQUER lugar do app (mesmo em cima de botões/cards) dispara
     // a onda na célula mais próxima do ponto clicado. Delegado no document
     // pra não depender de pointer-events em nada — resolve de vez o conflito
     // entre "clique atravessa até a célula" vs "página precisa de scroll".
     document.addEventListener('click', (e) => {
-        // Só dispara em clique de fundo vazio — cabeçalho, presets, botões,
-        // qualquer card (Streaming/Settings/About/Overlay/Update) e o número
-        // principal não devem animar o background. Pega toda classe
-        // "*-card" de uma vez em vez de listar uma por uma.
-        if (e.target.closest(
-            'button, a, input, select, label, #currentDelayDisplay, ' +
-            '.app-header-split, .update-banner, [class*="-card"]'
-        )) return;
+        if (e.target.closest(RIPPLE_EXCLUDE)) return;
 
         const gridRect = grid.getBoundingClientRect();
         const col = Math.round((e.clientX - gridRect.left) / cellSize);
         const row = Math.round((e.clientY - gridRect.top) / cellSize);
         if (row >= 0 && row < rows && col >= 0 && col < cols) {
             triggerRipple(row, col);
+        }
+    });
+
+    // Célula sob o mouse fica "selecionada" (destacada) ao passar o cursor no
+    // fundo — mesma lógica de coordenadas do clique, já que a grade está com
+    // pointer-events:none (não dá pra usar :hover puro do CSS aqui).
+    let hoveredCell = null;
+    document.addEventListener('mousemove', (e) => {
+        let cell = null;
+        if (!e.target.closest(RIPPLE_EXCLUDE)) {
+            const gridRect = grid.getBoundingClientRect();
+            const col = Math.round((e.clientX - gridRect.left) / cellSize);
+            const row = Math.round((e.clientY - gridRect.top) / cellSize);
+            if (row >= 0 && row < rows && col >= 0 && col < cols) {
+                cell = cells[row * cols + col];
+            }
+        }
+        if (cell !== hoveredCell) {
+            if (hoveredCell) hoveredCell.classList.remove('hovered');
+            if (cell) cell.classList.add('hovered');
+            hoveredCell = cell;
         }
     });
 }
